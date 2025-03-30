@@ -1,3 +1,5 @@
+# Топология
+![](images/DemExamGuide_20250330171538650.png)
 # Модуль 1 
 ## Дополнительно:
 В процессе настройки нам понадобится скачивать пакеты, и временно до того как настроим собственный днс сервер будем использовать общедоступный, в этой методичке днс сервер колледжа:
@@ -252,8 +254,7 @@ chown 777 ./*
 
 Теперь на всех устройствах можем установить этот днс сервер как основной для удобства.
 Не забудьте, на **HQ-CLI** по заданию dns должен быть выдан через dhcp!
->`echo -e "nameserver 172.16.100.2\ndomain au-team.irpo" >> /etc/net/ifaces/lo/resolv.conf
-systemctl restart network`
+>`echo -e "nameserver 172.16.100.2\ndomain au-team.irpo" >> /etc/net/ifaces/lo/resolv.conf && systemctl restart network`
 
 Примечание: 
 - Eсли презагружали сеть, то требуется перезагрузить и bind тоже
@@ -265,3 +266,70 @@ systemctl restart network`
 apt-get install glibc-timezones -y
 timedatectl set-timezone Europe/Moscow
 `
+# Модуль 2
+## 1. Настройте доменный контроллер Samba на машине BR-SRV.
+>`
+apt-get install samba-dc -y
+rm -f /etc/samba/smb.conf
+rm -f /etc/krb5.conf
+samba-tool domain provision
+Днс датабаза: BIND9_FLATFILE
+Пароль администратора и пользователей - P@ssw0rd
+samba-tool group add hq
+samba-tool user add user<1-5>.hq P@ssw0rd
+samba-tool group addmembers hq user<1-5>.hq
+scp -P 2024 /var/lib/samba/bind-dns/dns/au-team.irpo.zone sshuser@172.16.100.2:/home/sshuser/bind9_flatfile
+systemctl enable --now samba
+`
+
+На **HQ-SRV**
+Удалить все строки в файле /home/sshuser/bind9_flatfile до красной линии
+![](images/DemExamGuide_20250330160424331.png)
+И затем сделать 
+>`cat bind9_flatfile >> /etc/bind/zone/au-team.irpo
+systemctl restart bind
+`
+
+На **HQ-CLI**
+
+Меню > Центр управления > Центр управления системой > Ввести пароль для root > Аутентификация > Домен Active Directory
+Нажать "Применить" и ввести пароль для Administrator (P@ssw0rd)
+Перезагрузить компьютер и попробовать войти под одним из пользователей домена
+
+Реализуем повышение привелегий для пользоваталей группы hq, выполнять из-под root
+>`apt-get install sudo
+echo "%hq  ALL=(ALL) NOPASSWD: /bin/grep,/usr/bin/id,/bin/cat" >> /etc/sudoers
+chmod 4755 /usr/bin/sudo
+`
+
+Проверка: зайти под одним из пользователей домена и прописать `sudo id`, в начале вывода строки должно показать uid=0(root)
+## 3. Настройте службу сетевого времени на базе сервиса chrony
+На **HQ-RTR**
+>`
+apt-get install chrony -y
+vim /etc/chrony.conf
+`
+
+Пропишем следующие настройки:
+```
+#pool <POOL> iburst
+allow all
+local stratum 5 
+```
+>`systemctl restart chrony`
+
+На **HQ-SRV, HQ-CLI, BR-RTR, BR-SRV**
+>`
+apt-get install chrony -y
+vim /etc/chrony.conf
+`
+
+Пропишем следующие настройки:
+```
+pool 172.16.99.1 iburst
+```
+>`systemctl restart chrony
+chronyc makestep
+chronyc sources`
+
+Stratum должен быть 5, и статус нашего NTP сервера - ^*
