@@ -282,6 +282,29 @@ scp -P 2024 /var/lib/samba/bind-dns/dns/au-team.irpo.zone sshuser@172.16.100.2:/
 systemctl enable --now samba
 `
 
+Импорт пользователей:
+>`cd /opt
+vim import.sh`
+
+Содержание import.sh
+```
+#!/bin/bash
+
+CSVFILE="users.csv"
+while IFS=',' read -r UN PW; do
+    UN=$(echo $UN | xargs)
+    PW=$(echo $PW | xargs)
+    echo "Adding user: $UN with password: $PW"
+    samba-tool user add "$UN" "$PW"
+done < "$CSVFILE"
+```
+Запуск:
+>`sh import.sh`
+
+Пример успешного выполнения:
+
+![](images/DemExamGuide_20250331193909284.png)
+
 На **HQ-SRV**
 Удалить все строки в файле /home/sshuser/bind9_flatfile до красной линии
 ![](images/DemExamGuide_20250330160424331.png)
@@ -303,6 +326,52 @@ chmod 4755 /usr/bin/sudo
 `
 
 Проверка: зайти под одним из пользователей домена и прописать `sudo id`, в начале вывода строки должно показать uid=0(root)
+
+## 2. Сконфигурируйте файловое хранилище
+На **HQ-SRV**
+Введем `lsblk` чтобы посмотреть диски в системе
+>`
+Используем свободные диски по 1 гигу.
+mdadm --create /dev/md0 --level=5 --raid-devicces=3 /dev/vdb /dev/vdc /dev/vdd
+mkfs.ext4 /dev/md0
+mkdir /raid5
+cat /proc/mdstat - Ждём пока завершится сборка
+mdadm --detail --scan >> /etc/mdadm.conf
+vim /etc/fstab`
+
+Между элементов - табы
+```
+/dev/md0	/raid5	ext4	defaults	0	0
+```
+Настроим nfs
+>`
+apt-get install rpcbind nfs-server -y
+mkdir /raid5/nfs
+systemtl enable --now nfs
+vim /etc/exports
+`
+```
+/raid5/nfs 172.16.200.0/28(no_root_squash,subtree_check,rw)
+```
+`exportfs -ra`
+На **HQ-CLI**
+От root
+>`
+mkdir /mnt/nfs
+vim /etc/fstab
+`
+
+Между элементами - табы
+```
+hq-srv:/raid5/nfs	/mnt/nfs	nfs	defaults	0	0
+```
+Для проверки - от root
+>`
+reboot
+mount | grep nfs
+touch /mnt/nfs/icanwrite`
+
+Раздел должен быть в выдаче grep как примонтированный и должна быть возможность записи на него
 ## 3. Настройте службу сетевого времени на базе сервиса chrony
 На **HQ-RTR**
 >`
@@ -333,3 +402,30 @@ chronyc makestep
 chronyc sources`
 
 Stratum должен быть 5, и статус нашего NTP сервера - ^*
+## 4. Сконфигурируйте ansible на сервере BR-SRV
+Преднастройка машин от root:
+На **HQ-RTR, BR-RTR, CLI-HQ**
+>`
+systemctl enable --now sshd
+`
+
+На **HQ-SRV**
+>`apt-get install -y python3`
+
+Настройка Ansible на **BR-SRV**
+>`
+apt-get install -y ansible
+cd /etc/ansible
+`
+
+В файле ansible.cfg раскоментируем строку `host_key_checking = False`
+
+Файл hosts должен иметь следующее содержание:
+![](images/DemExamGuide_20250331211802470.png)
+
+Проверка:
+>`ansible -m ping all`
+
+Должно вывести:
+
+![](images/DemExamGuide_20250331212012678.png)
