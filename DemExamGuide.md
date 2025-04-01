@@ -429,3 +429,65 @@ cd /etc/ansible
 Должно вывести:
 
 ![](images/DemExamGuide_20250331212012678.png)
+## 5. Развертывание приложений в Docker на сервере BR-SRV.
+>`
+apt-get install -y docker-engine docker-compose
+ln /usr/lib/docker/cli-pluigns/docker-compose /bin/
+systemcl enable --now docker
+cd /root
+vim wiki.yml
+`
+
+Запишем в файл следующее:
+![](images/DemExamGuide_20250402025413398.png)
+
+Поднимем контейнеры и настроим способ аутентификации для пользователя wiki:
+>`
+docker-compose -f wiki.yml up -d
+docker exec -it mariadb bash
+mariadb -u root
+CREATE USER 'wiki'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('WikiP@ssw0rd');
+GRANT ALL PRIVILEGES ON *.* TO 'wiki';
+exit
+exit
+systemctl enable --now sshd
+`
+
+На **HQ-CLI**
+Через браузер открываем 172.16.0.2:8080
+![](images/DemExamGuide_20250402011827882.png)
+Ставим русский язык
+![](images/DemExamGuide_20250401224506430.png)
+~~Внимательно читаем условия~~ Проматываем вниз и соглашаемся со всем
+![](images/DemExamGuide_20250401224603147.png)
+Заполняем данные для MariaDB
+![](images/DemExamGuide_20250402012447235.png)
+Жмём далее
+![](images/DemExamGuide_20250402012536867.png)
+Почти готово, вводим оставшиеся данные
+![](images/DemExamGuide_20250402013919320.png)
+![](images/DemExamGuide_20250402013952486.png)
+![](images/DemExamGuide_20250402020941021.png)
+Вас перебросит на эту страницу и автоматичеки скачается файл с настройками, если он не скачался нажмите `Загрузить`
+![](images/DemExamGuide_20250402021137986.png)
+
+Теперь отправляем этот файл на сервер с MediaWiki
+>`scp LocalSettings.php sshuser@br-srv:/home/sshuser/`
+
+На **BR-SRV**
+>`
+mv /home/sshuser/LocalSettings.php /root/
+docker-compose -f wiki.yml down
+vim wiki.yml`
+
+Раскомментируем строку
+```
+# - ./LocalSettings.php:/var/www/html/LocalSettings.php
+```
+Поднимем контейнер
+>`
+docker-compose -f wiki.yml up -d`
+
+На **HQ-CLI**
+Обновляем страницу и видим что вики теперь работает
+![](images/DemExamGuide_20250402025529000.png)
