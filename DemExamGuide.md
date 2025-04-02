@@ -466,7 +466,7 @@ systemctl enable --now sshd
 ![](images/DemExamGuide_20250402021137986.png)
 
 Теперь отправляем этот файл на BR-SRV
->`scp LocalSettings.php sshuser@br-srv:/home/sshuser/`
+>`scp -P 2024 LocalSettings.php sshuser@br-srv:/home/sshuser/`
 
 На **BR-SRV**
 >`
@@ -489,3 +489,31 @@ docker-compose -f wiki.yml up -d`
 На **BR-SRV**
 Если вы что-то настроили не так и нужно сбросить контейнеры, используйте:
 >`docker-compose -f wiki.yml down -v`
+
+## 6. На маршрутизаторах сконфигурируйте статическую трансляцию портов
+На **BR-RTR**
+>`
+iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 80 -j DNAT --to-destination 172.16.0.2:8080
+iptables-save >> /etc/sysconfig/iptables
+iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 2024 -j DNAT --to-destination 172.16.0.2:2024
+iptables-save >> /etc/sysconfig/iptables
+`
+
+Проверяем работу Wiki с HQ-CLI
+В браузере открываем 172.16.5.2:80
+
+Проверяем работу ssh с HQ-RTR
+>`ssh sshuser@172.16.5.2 -p 2024`
+
+
+
+На **HQ-RTR**
+>`
+iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 2024 -j DNAT --to-destination 172.16.100.2:2024
+iptables-save >> /etc/sysconfig/iptables
+`
+
+Проверяем с BR-RTR
+>`
+ssh sshuser@172.16.4.2 -p 2024
+`
