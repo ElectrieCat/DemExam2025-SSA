@@ -439,17 +439,11 @@ vim wiki.yml
 `
 
 Запишем в файл следующее:
-![](images/DemExamGuide_20250402025413398.png)
+![](images/DemExamGuide_20250402154223023.png)
 
 Поднимем контейнеры и настроим способ аутентификации для пользователя wiki:
 >`
 docker-compose -f wiki.yml up -d
-docker exec -it mariadb bash
-mariadb -u root
-CREATE USER 'wiki'@'%' IDENTIFIED VIA mysql_native_password USING PASSWORD('WikiP@ssw0rd');
-GRANT ALL PRIVILEGES ON *.* TO 'wiki';
-exit
-exit
 systemctl enable --now sshd
 `
 
@@ -471,7 +465,7 @@ systemctl enable --now sshd
 Вас перебросит на эту страницу и автоматичеки скачается файл с настройками, если он не скачался нажмите `Загрузить`
 ![](images/DemExamGuide_20250402021137986.png)
 
-Теперь отправляем этот файл на сервер с MediaWiki
+Теперь отправляем этот файл на BR-SRV
 >`scp LocalSettings.php sshuser@br-srv:/home/sshuser/`
 
 На **BR-SRV**
@@ -480,14 +474,18 @@ mv /home/sshuser/LocalSettings.php /root/
 docker-compose -f wiki.yml down
 vim wiki.yml`
 
-Раскомментируем строку
+Раскомментируем строку (убрать символ #)
 ```
-# - ./LocalSettings.php:/var/www/html/LocalSettings.php
+#- ./LocalSettings.php:/var/www/html/LocalSettings.php
 ```
 Поднимем контейнер
 >`
 docker-compose -f wiki.yml up -d`
 
 На **HQ-CLI**
-Обновляем страницу и видим что вики теперь работает
+Немного ждём и обновляем страницу, видим что вики теперь работает
 ![](images/DemExamGuide_20250402025529000.png)
+
+На **BR-SRV**
+Если вы что-то настроили не так и нужно сбросить контейнеры, используйте:
+>`docker-compose -f wiki.yml down -v`
