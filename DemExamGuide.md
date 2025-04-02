@@ -517,3 +517,53 @@ iptables-save >> /etc/sysconfig/iptables
 >`
 ssh sshuser@172.16.4.2 -p 2024
 `
+
+## 7. Запустите сервис moodle на сервере HQ-SRV
+>`
+apt-get install -y moodle-local-mysql moodle moodle-apache2 mariadb-server
+systemctl enable --now httpd2.service mysqld.service
+mariadb -u root
+CREATE DATABASE moodledb DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'moodle'@'localhost' IDENTIFIED VIA mysql_native_password USING PASSWORD('P@ssw0rd');
+GRANT ALL PRIVILEGES ON moodledb.* TO 'moodle'@'localhost';
+FLUSH PRIVILEGES;
+exit
+vim /etc/php/8.2/apache2-mod_php/php.ini
+`
+
+Раскомментируем и приводим к нужному виду:
+```
+max_input_vars = 5000
+```
+>`systemctl restart httpd2.service`
+
+На **CLI-HQ**
+В браузере откроем http://172.16.100.2/moodle
+![](images/DemExamGuide_20250402222028021.png)
+![](images/DemExamGuide_20250402222100250.png)
+![](images/DemExamGuide_20250402222149141.png)
+![](images/DemExamGuide_20250402222239660.png)
+![](images/DemExamGuide_20250402222321308.png)
+![](images/DemExamGuide_20250402222353993.png)
+Ждём и проматываем вниз
+![](images/DemExamGuide_20250402222524917.png)
+Заполняем данные
+![](images/DemExamGuide_20250402222946539.png)
+![](images/DemExamGuide_20250402223216611.png)
+![](images/DemExamGuide_20250402223355860.png)
+![](images/DemExamGuide_20250402223455768.png)
+![](images/DemExamGuide_20250402223521747.png)
+![](images/DemExamGuide_20250402223549258.png)
+![](images/DemExamGuide_20250402223808191.png)
+![](images/DemExamGuide_20250402223948916.png)
+Проматываем вниз
+![](images/DemExamGuide_20250402224020499.png)
+Ставим такие параметры если они не установились сами
+![](images/DemExamGuide_20250402224223247.png)
+Проматываем вниз
+![](images/DemExamGuide_20250402224302360.png)
+Выключаем режим редактирования
+![](images/DemExamGuide_20250402224532920.png)
+Нажимаем везде "В начало"
+![](images/DemExamGuide_20250402224649769.png)
+Настройка завершена
