@@ -567,3 +567,25 @@ max_input_vars = 5000
 Нажимаем везде "В начало"
 ![](images/DemExamGuide_20250402224649769.png)
 Настройка завершена
+
+## 8. Настройте веб-сервер nginx как обратный прокси-сервер на HQ-RTR
+>`
+apt-get install nginx -y
+vim /etc/nginx/sites-available.d/default.conf`
+
+Заполняем так:
+![](images/DemExamGuide_20250403210132039.png)
+
+
+>`
+ln /etc/nginx/sites-available.d/default.conf /etc/nginx/sites-enables.d/
+systemctl enable --now nginx.service`
+
+Проверяем с HQ-CLI
+
+В браузере открываем страницы
+
+`
+http://moodle.au-team.irpo/moodle
+http://wiki.au-team.irpo
+`
