@@ -589,3 +589,150 @@ systemctl enable --now nginx.service`
 http://moodle.au-team.irpo/moodle
 http://wiki.au-team.irpo
 `
+# Модуль 3
+## 2. ПОЧИНИТЬ Выполните настройку центра сертификации на базе HQ-SRV
+>`
+apt-get install -y easy-rsa openssl openssl-gost-engine
+control openssl-gost enabled
+mkdir /etc/easy-rsa
+cp -r /usr/share/easyrsa3/* /etc/easy-rsa/
+cd /etc/easy-rsa
+mv vars.example vars
+vim vars
+`
+
+![](images/DemExamGuide_20250406153113074.png)
+>`
+easyrsa init-pki
+easyrsa build-ca nopass
+Вводим SelfCert
+easyrsa gen-req web nopass
+easyrsa sign-req server web
+scp pki/ca.crt user@hq-cli:/home/user
+scp pki/issued/web.crt net_admin@hq-rtr:/home/net_admin
+scp pki/private/web.crt net_admin@hq-rtr:/home/net_admin
+`
+
+На **HQ-RTR**
+>`
+mkdir /etc/ssl/certs -p
+mv /home/net_admin/web* /etc/ssl/certs/
+vim /etc/nginx/sites-available.d/default.conf`
+
+![](images/DemExamGuide_20250406173506472.png)
+>`systemctl restart nginx`
+
+На **HQ-CLI**
+>`mv /home/user/car.cr /etc/pki/ca-trust/source/anchors/
+update-ca-trust
+`
+
+Проверить открыв https://wiki.au-team.irpo, если нет предупреждений то всё сработало
+
+## 5. ПОЧИНИТЬ Настройте принт-сервер cups на сервере HQ-SRV.
+>`
+apt-get install -y cups cups-pdf
+cupsctl --remote-admin --remote-any --share-printers
+`
+
+## 6. Реализуйте логирование при помощи rsyslog на устройствах HQ-RTR, BR-RTR, BR-SRV
+
+На **HQ-SRV**
+>`
+apt-get install -y rsyslog-classic
+vim /etc/rsyslog.d/00_common.conf
+rm -f /etc/rsyslog.d/10_classic.conf
+`
+```
+Раскомментировать строки
+module(load="imudp") # needs to be done just once
+input(type="imudp" port="514")
+
+module(load="imtcp") # needs to be done just once
+input(type="imtcp" port="514")
+
+Добавить в конец файла
+$template RemoteLogs, "/opt/%HOSTNAME%/%HOSTNAME%.log"
+*.* ?RemoteLogs
+& ~
+```
+
+>`
+systemctl enable --now rsyslog`
+
+На **HQ-RTR, BR-RTR, BR-SRV**
+
+>`
+apt-get install -y rsyslog-classic
+vim /etc/rsyslog.d/00_common.conf
+`
+```
+Раскомментировать
+module(load="imjournal") # provides support for systemd-journald logging
+module(load="imuxsock")  # provides support for local system logging (e.g. via logger command)
+module(load="imklog")    # provides kernel logging support (previously done by rklogd)
+module(load="immark")    # provides --MARK-- message capability
+
+Добавить в конец файла
+*.warning @@hq-srv:514
+```
+>`
+systemctl enable --now rsyslog`
+
+На **HQ-SRV**
+Проверим что логи присылаются `ls /opt`
+Настроим ротацию
+>`vim /etc/logrotate.d/rsyslog`
+
+![](images/DemExamGuide_20250406211531398.png)
+>`
+EDITOR=vim crontab -e
+Введите:
+0 0 * * 0 /usr/sbin/logrotate -f /etc/logrotate.d/rsyslog
+Выйти из vim :wq
+`
+
+Проверим работу:
+>`logrotate -d /etc/logrotate.d/rsyslog`
+
+Должно быть выведено, что слишком рано для ротации т.к. логи не достигли нужного размера файла
+
+## 8. Реализуйте механизм инвентаризации машин HQ-SRV и HQ-CLI через Ansible на BR-SRV:
+>`
+mkdir /etc/ansible/PC_INFO
+vim /etc/ansible/PC_INFO/playbook.yml
+`
+
+![](images/DemExamGuide_20250406223654108.png)
+
+>`ansible-playbook /etc/ansible/PC_INFO/playbook.yml`
+
+Если всё успешно, в папке PC_INFO появятся два файла с отчетом о машинах
+
+Дополнительно если что-то не так, для отладки синтаксиса плейбука можно использовать пакет и утилиту ansible-lint
+
+## 9. ПОЧИНИТЬ Реализуйте механизм резервного копирования конфигурации для машин HQ-RTR и BR-RTR, через Ansible на BR-SRV
+
+>`
+mkdir /etc/ansible/NETWORK_INFO
+vim /etc/ansible/net.yml`
+
+![](images/DemExamGuide_20250407014031722.png)
+
+
+На **BR-RTR, HQ-RTR**
+>`
+chmod -R 777 /etc/frr
+chmod o+r /etc/sysconfig /etc/sysconfig/iptables 
+chmod -R o+r /etc/net/ifaces/
+`
+
+На **HQ-RTR**
+>`
+chmod -R 777 /etc/dhcp
+`
+
+На **BR-SRV**
+>`ansible-playbook /etc/ansible/net/yml`
+
+Для проверки смотрим папку /etc/ansible/NETWORK_INFO
