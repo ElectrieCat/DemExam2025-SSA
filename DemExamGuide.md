@@ -591,25 +591,35 @@ http://wiki.au-team.irpo
 `
 # Модуль 3
 ## 2. ПОЧИНИТЬ Выполните настройку центра сертификации на базе HQ-SRV
+
 >`
-apt-get install -y easy-rsa openssl openssl-gost-engine
+apt-get install -y openssl openssl-gost-engine
 control openssl-gost enabled
-mkdir /etc/easy-rsa
-cp -r /usr/share/easyrsa3/* /etc/easy-rsa/
-cd /etc/easy-rsa
-mv vars.example vars
-vim vars
+openssl genpkey -algorithm gost2012_256 -pkeyopt paramset:A -out /etc/pki/CA/private/ca.key
+openssl req -x509 -md_gost12_256 -new -key /etc/pki/CA/private/ca.key -days 365 -out /etc/pki/CA/certs/ca.crt
+В Common Name вводим: SelfCert
+openssl genrsa -out web.key 4096
+openssl req -key web.key -new -out web.csr
+В Common Name вводим: *.au-team.irpo
+vim openssl.cnf
 `
 
-![](images/DemExamGuide_20250406153113074.png)
+Запишем в файл:
+```
+[req]
+req_extensions = req_ext
+
+[req_ext]
+subjectAltName = DNS:wiki.au-team.irpo, DNS:moodle.au-team.irpo
+extendedKeyUsage = serverAuth
+keyUsage = digitalSignature
+```
+
 >`
-easyrsa init-pki
-easyrsa build-ca nopass
-Вводим SelfCert
-easyrsa gen-req web nopass
-easyrsa sign-req server web
 scp pki/ca.crt user@hq-cli:/home/user
+
 scp pki/issued/web.crt net_admin@hq-rtr:/home/net_admin
+
 scp pki/private/web.crt net_admin@hq-rtr:/home/net_admin
 `
 
@@ -629,12 +639,25 @@ update-ca-trust
 
 Проверить открыв https://wiki.au-team.irpo, если нет предупреждений то всё сработало
 
-## 5. ПОЧИНИТЬ Настройте принт-сервер cups на сервере HQ-SRV.
+
+## 5. Настройте принт-сервер cups на сервере HQ-SRV.
 >`
 apt-get install -y cups cups-pdf
 cupsctl --remote-admin --remote-any --share-printers
 `
 
+На **HQ-CLI**
+От root
+>`
+lpadmin -p Cups-PDF -E -v ipp://hq-srv:631/printers/Cups-PDF -m everywhere
+lpoptions -d Cups-PDF
+echo "Test print job" | lp -d Cups-PDF
+`
+
+В браузере откроем
+https://hq-srv.au-team.irpo:631/jobs
+![](images/DemExamGuide_20250407180506222.png)
+Если задание появилось, то всё настроено правильно.
 ## 6. Реализуйте логирование при помощи rsyslog на устройствах HQ-RTR, BR-RTR, BR-SRV
 
 На **HQ-SRV**
@@ -711,14 +734,13 @@ vim /etc/ansible/PC_INFO/playbook.yml
 
 Дополнительно если что-то не так, для отладки синтаксиса плейбука можно использовать пакет и утилиту ansible-lint
 
-## 9. ПОЧИНИТЬ Реализуйте механизм резервного копирования конфигурации для машин HQ-RTR и BR-RTR, через Ansible на BR-SRV
+## 9. Реализуйте механизм резервного копирования конфигурации для машин HQ-RTR и BR-RTR, через Ansible на BR-SRV
 
 >`
 mkdir /etc/ansible/NETWORK_INFO
 vim /etc/ansible/net.yml`
 
-![](images/DemExamGuide_20250407014031722.png)
-
+![](images/DemExamGuide_20250407164931623.png)
 
 На **BR-RTR, HQ-RTR**
 >`
