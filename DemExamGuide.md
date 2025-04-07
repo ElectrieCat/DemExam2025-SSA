@@ -615,13 +615,9 @@ extendedKeyUsage = serverAuth
 keyUsage = digitalSignature
 ```
 
->`
-scp pki/ca.crt user@hq-cli:/home/user
-
-scp pki/issued/web.crt net_admin@hq-rtr:/home/net_admin
-
-scp pki/private/web.crt net_admin@hq-rtr:/home/net_admin
-`
+>`scp pki/ca.crt user@hq-cli:/home/user`
+>`scp pki/issued/web.crt net_admin@hq-rtr:/home/net_admin`
+>`scp pki/private/web.crt net_admin@hq-rtr:/home/net_admin`
 
 На **HQ-RTR**
 >`
