@@ -592,17 +592,16 @@ http://wiki.au-team.irpo
 # Модуль 3
 ## 2. ПОЧИНИТЬ Выполните настройку центра сертификации на базе HQ-SRV
 
->`
-apt-get install -y openssl openssl-gost-engine
-control openssl-gost enabled
-openssl genpkey -algorithm gost2012_256 -pkeyopt paramset:A -out /etc/pki/CA/private/ca.key
-openssl req -x509 -md_gost12_256 -new -key /etc/pki/CA/private/ca.key -days 365 -out /etc/pki/CA/certs/ca.crt
-В Common Name вводим: SelfCert
-openssl genrsa -out web.key 4096
-openssl req -key web.key -new -out web.csr
-В Common Name вводим: *.au-team.irpo
-vim openssl.cnf
-`
+* apt-get install -y openssl openssl-gost-engine
+* control openssl-gost enabled
+* openssl genpkey -algorithm gost2012_256 -pkeyopt paramset:A -out /etc/pki/CA/private/ca.key
+* openssl req -x509 -md_gost12_256 -new -key /etc/pki/CA/private/ca.key -days 365 -out /etc/pki/CA/certs/ca.crt
+* В Common Name вводим: SelfCert
+* openssl genrsa -out web.key 4096
+* openssl req -key web.key -new -out web.csr
+* В Common Name вводим: *.au-team.irpo
+* vim openssl.cnf
+
 
 Запишем в файл:
 ```
@@ -616,7 +615,9 @@ keyUsage = digitalSignature
 ```
 
 >`scp pki/ca.crt user@hq-cli:/home/user`
+
 >`scp pki/issued/web.crt net_admin@hq-rtr:/home/net_admin`
+
 >`scp pki/private/web.crt net_admin@hq-rtr:/home/net_admin`
 
 На **HQ-RTR**
