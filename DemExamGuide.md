@@ -1,7 +1,6 @@
 # Топология
 ![](images/DemExamGuide_20250330171538650.png)
-# Модуль 1 
-## Дополнительно:
+## Полезности:
 В процессе настройки нам понадобится скачивать пакеты, и временно до того как настроим собственный днс сервер будем использовать общедоступный, в этой методичке днс сервер колледжа:
 
 ```
@@ -19,6 +18,26 @@ apt-update
 ```
 
 при получении доступа в интернет и после прикручивания временного днс сервера, если этого не сделать иногда не удастся поставить пакеты
+
+Полезные команды Vim
+```
+:w Сохранить 
+:q Закрыть файл 
+:q! Закрыть файл без сохранения
+:wq! Принудительно записать файл
+/<слово> Поиск
+n Следующее совпадение в поиске
+ESC Выход в командный режим
+i режим редактирования
+dd удалить строку
+v режим выделения
+y скопировать выделенное
+c вырезать выделенное
+p вставить
+DEL удалить символ из режима команд
+```
+
+# Модуль 1 
 
 ## 1. Произведите базовую настройку устройств
 Настройте имена устройств согласно топологии. Используйте полное доменное имя.
@@ -293,7 +312,7 @@ echo -e "nameserver 172.16.100.2\ndomain au-team.irpo" >> /etc/net/ifaces/lo/res
 ## 11. Настройте часовой пояс на всех устройствах, согласно месту проведения экзамена.
 Требуется днс и возможно обновить репозиторий
 ```
-apt-get install glibc-timezones -y
+apt-get install tzdata -y
 timedatectl set-timezone Europe/Moscow
 ```
 
@@ -655,9 +674,14 @@ systemctl enable --now nginx.service
 http://moodle.au-team.irpo/moodle
 http://wiki.au-team.irpo
 ```
+## 9. Удобным способом установите приложение Яндекс Браузере для организаций на HQ-CLI
+Из-под root
+```
+apt-get install -y yandex-browser-stable
+```
 
 # Модуль 3
-## 2. ПОЧИНИТЬ Выполните настройку центра сертификации на базе HQ-SRV
+## 2. ДОДЕЛАТЬ Выполните настройку центра сертификации на базе HQ-SRV
 
 ```
 apt-get install -y openssl openssl-gost-engine
@@ -798,6 +822,102 @@ logrotate -d /etc/logrotate.d/rsyslog
 ```
 
 Должно быть выведено, что слишком рано для ротации т.к. логи не достигли нужного размера файла
+
+## 7. ДОДЕЛАТЬ На сервере HQ-SRV реализуйте мониторинг устройств с помощью открытого программного обеспечения.
+```
+apt-get install -y docker-engine docker-compose
+systemctl enable --now docker
+vim zabbix.yml
+```
+
+```
+    version: "3.9"
+    
+    services:
+     
+      zabbix-mariadb:
+        image: mariadb
+        container_name: zabbix-mariadb
+        hostname: zabbix-mariadb
+        restart: unless-stopped
+        environment:
+          TZ: "Europe/Moscow"
+          MYSQL_ROOT_USER: root
+          MYSQL_ROOT_PASSWORD: secret
+          MYSQL_DATABASE: zabbix
+          MYSQL_USER: zabbix
+          MYSQL_PASSWORD: zabbixpass
+        networks:
+          - default
+        volumes:
+          - /opt/zabbix/mariadb/data:/var/lib/mysql
+     
+      zabbix-server:
+        image: zabbix/zabbix-server-mysql
+        container_name: zabbix-server
+        hostname: zabbix-server
+        restart: unless-stopped
+        environment:
+          TZ: "Europe/Moscow"
+          DB_SERVER_HOST: zabbix-mariadb
+          MYSQL_USER: zabbix
+          MYSQL_PASSWORD: zabbixpass
+        networks:
+          default:
+            ipv4_address: 172.28.0.254
+        depends_on:
+          - zabbix-mariadb
+     
+      zabbix-web:
+        image: zabbix/zabbix-web-nginx-mysql
+        container_name: zabbix-web
+        hostname: zabbix-web
+        restart: unless-stopped
+        environment:
+          TZ: "Europe/Moscow"
+          DB_SERVER_HOST: zabbix-mariadb
+          MYSQL_USER: zabbix
+          MYSQL_PASSWORD: zabbixpass
+          ZBX_SERVER_HOST: zabbix-server
+          PHP_TZ: "Europe/Moscow"
+        ports:
+          - 8080:8080
+          - 8443:8443
+        networks:
+          - default
+        depends_on:
+          - zabbix-mariadb
+          - zabbix-server
+     
+    networks:
+      default:
+        ipam:
+          driver: default
+          config:
+            - subnet: 172.28.0.0/16
+```
+
+```
+docker compose -f zabbix.yml up -d
+```
+
+```
+vim /etc/bind/zone/au-team.irpo
+```
+Добавим строку с табами где пробелы
+```
+mon	IN	CNAME	hq-srv.au-team.irpo.
+```
+```
+systemctl restart bind
+```
+Настроим nginx для https
+```
+apt-get install nginx
+```
+
+На **HQ-CLI**
+Откроем в браузере mon.au-team.irpo
 
 ## 8. Реализуйте механизм инвентаризации машин HQ-SRV и HQ-CLI через Ansible на BR-SRV:
 ```
