@@ -862,6 +862,7 @@ vim zabbix.yml
           DB_SERVER_HOST: zabbix-mariadb
           MYSQL_USER: zabbix
           MYSQL_PASSWORD: zabbixpass
+          ZBX_ALLOWUNSUPPORTEDDBVERSIONS=1
         networks:
           default:
             ipv4_address: 172.28.0.254
@@ -917,7 +918,45 @@ apt-get install nginx
 ```
 
 На **HQ-CLI**
-Откроем в браузере mon.au-team.irpo
+Откроем в браузере http://mon.au-team.irpo:8080
+Данные для входа после установки: 
+```
+Пользователь: Admin
+пароль: zabbix
+```
+
+Отключим проверку на небезопасные пароли
+![](images/DemExamGuide_20250409103918811.png)
+Поставим пароль и имя пользователя
+![](images/DemExamGuide_20250409104033282.png)
+![](images/DemExamGuide_20250409105600350.png)
+```
+Текщий пароль: zabbix
+Новый пароль два раза: P@ssw0rd
+```
+
+![](images/DemExamGuide_20250406223654108.png)
+
+На **HQ-RTR, HQ-SRV, BR-RTR и BR-SRV**
+От root
+```
+apt-get install -y zabbix-agent
+vim /etc/zabbix/zabbix_agentd.conf
+```
+Ищем строки и настраиваем
+```
+Server=hq-srv
+ServerActive=hq-srv
+```
+Включаем агент
+```
+systemctl enable --now zabbix_agentd.service
+```
+На **CLI-HQ**
+Добавим устройства в мониторинг
+Возможно придется уменьшить масштаб страницы чтобы увидеть кнопку добавления хоста
+![](images/DemExamGuide_20250409111424505.png)
+![](images/DemExamGuide_20250409111220186.png)
 
 ## 8. Реализуйте механизм инвентаризации машин HQ-SRV и HQ-CLI через Ansible на BR-SRV:
 ```
