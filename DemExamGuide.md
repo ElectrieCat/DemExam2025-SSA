@@ -21,20 +21,31 @@ apt-update
 
 Полезные команды Vim
 ```
+По умолчанию после открытия файла vim находится в режиме команд
+
+Переход в режим редактирования из режима команд
+i режим редактирования
+
+Клавиша ESC - переход в командный режим, перед выполнением команд в него нужно переходить из режима редактирования
+Функции в режиме команд:
+
+Клавиша DEL - удалить символ
 :w Сохранить 
 :q Закрыть файл 
 :q! Закрыть файл без сохранения
 :wq! Принудительно записать файл
 /<слово> Поиск
 n Следующее совпадение в поиске
-ESC Выход в командный режим
-i режим редактирования
+N Предыдущее совпаденеи в поиске
 dd удалить строку
 v режим выделения
 y скопировать выделенное
 c вырезать выделенное
 p вставить
-DEL удалить символ из режима команд
+
+Выплнить команду - Enter
+
+В обоих режимах доступно управление курсором через стрелочки и клавиша DEL
 ```
 
 # Модуль 1 
@@ -686,51 +697,46 @@ apt-get install -y yandex-browser-stable
 ```
 apt-get install -y openssl openssl-gost-engine
 control openssl-gost enabled
-openssl genpkey -algorithm gost2012_256 -pkeyopt paramset:A -out /etc/pki/CA/private/ca.key
-openssl req -x509 -md_gost12_256 -new -key /etc/pki/CA/private/ca.key -days 365 -out /etc/pki/CA/certs/ca.crt
-В Common Name вводим: SelfCert
-openssl genrsa -out web.key 4096
-openssl req -key web.key -new -out web.csr
-В Common Name вводим: *.au-team.irpo
-vim openssl.cnf
-```
-
-Запишем в файл:
-```
-[req]
-req_extensions = req_ext
-
-[req_ext]
-subjectAltName = DNS:wiki.au-team.irpo, DNS:moodle.au-team.irpo
-extendedKeyUsage = serverAuth
-keyUsage = digitalSignature
+cd
+openssl genpkey -algorithm gost2012_256 -pkeyopt paramset:TCB -out ca.key
+openssl req -new -x509 -md_gost12_256 -days 365 -key ca.key -out ca.cer -subj "/CN=AU-Team-CA"
+openssl genpkey -algorithm gost2012_256 -pkeyopt paramset:A -out web.key
+openssl req -new  -md_gost12_256 -key web.key -out web.csr -subj "/CN=*.au-team.irpo"
+openssl x509 -req -in web.csr -CA ca.cer -CAkey ca.key -CAcreateserial -out web.cer -days 365
 ```
 
 ```
-scp pki/ca.crt user@hq-cli:/home/user
-scp pki/issued/web.crt net_admin@hq-rtr:/home/net_admin
-scp pki/private/web.crt net_admin@hq-rtr:/home/net_admin
+scp ca.cer user@hq-cli:/home/user
+scp web.* net_admin@hq-rtr:/home/net_admin
 ```
 
 На **HQ-RTR**
 ```
 mkdir /etc/ssl/certs -p
-mv /home/net_admin/web* /etc/ssl/certs/
+mv /home/net_admin/web.* /etc/ssl/certs/
 vim /etc/nginx/sites-available.d/default.conf
 ```
+![](images/DemExamGuide_20250409173931489.png)
 
-![](images/DemExamGuide_20250406173506472.png)
 ```
 systemctl restart nginx
 ```
 
 На **HQ-CLI**
 ```
-mv /home/user/car.cr /etc/pki/ca-trust/source/anchors/
+mv /home/user/ca.cer /etc/pki/ca-trust/source/anchors/
 update-ca-trust
+trust list | grep Team #Проверим что система доверяет нашему CA
+apt-get install cryptopro-preinstall
+tar -xf linux-amd64.tgz #Архив качаем с сайта КриптоПро после регистрации, нам нужен "Актуальный" для Linux RPM x64
+cd linux-amd64
+apt-get install cprocsp-curl* lsb-cprocsp-base* lsb-cprocsp-capilite* lsb-cprocsp-kc1-64* lsb-cprocsp-rdr-64*
+./install.sh
+ln /opt/cprocsp/bin/amd64/* /bin
+certmgr -install -store -mRoot -file /etc/pki/ca-trust/source/anchors/ca.cer #Вводим "o"
 ```
-
-Проверить открыв https://wiki.au-team.irpo, если нет предупреждений то всё сработало
+Включим поддержку шифрования по ГОСТу в яндексе, для этого перейдём в Три полоски сверху> Настройки > Системные > Подключаться к сайтам использующим шифрование ГОСТ
+Проверить открыв в яндекс браузере https://wiki.au-team.irpo, если нет предупреждений то всё сработало
 
 
 ## 5. Настройте принт-сервер cups на сервере HQ-SRV.
@@ -823,7 +829,7 @@ logrotate -d /etc/logrotate.d/rsyslog
 
 Должно быть выведено, что слишком рано для ротации т.к. логи не достигли нужного размера файла
 
-## 7. ДОДЕЛАТЬ На сервере HQ-SRV реализуйте мониторинг устройств с помощью открытого программного обеспечения.
+## 7. На сервере HQ-SRV реализуйте мониторинг устройств с помощью открытого программного обеспечения.
 ```
 apt-get install -y docker-engine docker-compose
 systemctl enable --now docker
@@ -912,10 +918,13 @@ mon	IN	CNAME	hq-srv.au-team.irpo.
 ```
 systemctl restart bind
 ```
-Настроим nginx для https
+
+### ДОНАСТРОИТЬ NGINX, зависит от ЦС
+На **HQ-SRV**
 ```
-apt-get install nginx
+soon
 ```
+
 
 На **HQ-CLI**
 Откроем в браузере http://mon.au-team.irpo:8080
@@ -945,7 +954,7 @@ vim /etc/zabbix/zabbix_agentd.conf
 ```
 Ищем строки и настраиваем
 ```
-Server=hq-srv
+Server=hq-srv #Для конфигурации на машине HQ-SRV в этой строке поставить "0.0.0.0/0"
 ServerActive=hq-srv
 ```
 Включаем агент
@@ -953,9 +962,9 @@ ServerActive=hq-srv
 systemctl enable --now zabbix_agentd.service
 ```
 На **CLI-HQ**
-Добавим устройства в мониторинг
-Возможно придется уменьшить масштаб страницы чтобы увидеть кнопку добавления хоста
+Добавим устройства в мониторинг, возможно придется уменьшить масштаб страницы чтобы увидеть кнопку добавления хоста, по аналогии с этим добавляем все устройства
 ![](images/DemExamGuide_20250409111424505.png)
+Нажмем кнопку Add в пункте Interfaces и выберете Agent чтобы присвоить IP адрес машины
 ![](images/DemExamGuide_20250409111220186.png)
 
 ## 8. Реализуйте механизм инвентаризации машин HQ-SRV и HQ-CLI через Ansible на BR-SRV:
