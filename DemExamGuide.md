@@ -692,7 +692,7 @@ apt-get install -y yandex-browser-stable
 ```
 
 # Модуль 3
-## 2. ДОДЕЛАТЬ Выполните настройку центра сертификации на базе HQ-SRV
+## 2. Выполните настройку центра сертификации на базе HQ-SRV
 
 ```
 apt-get install -y openssl openssl-gost-engine
@@ -704,9 +704,64 @@ openssl genpkey -algorithm gost2012_256 -pkeyopt paramset:A -out web.key
 openssl req -new  -md_gost12_256 -key web.key -out web.csr -subj "/CN=*.au-team.irpo"
 openssl x509 -req -in web.csr -CA ca.cer -CAkey ca.key -CAcreateserial -out web.cer -days 365
 ```
-
+Преднастройка для создания CRL
 ```
-scp ca.cer user@hq-cli:/home/user
+touch index.txt
+echo 00 > crlnumber
+vim /var/lib/ssl/openssl.cnf
+```
+
+Настроим следующие строки в файле
+```
+[ ca ]
+default_ca      = CA_default            # The default ca section
+
+####################################################################
+[ CA_default ]
+
+dir             = ./            # Where everything is kept
+certs           = $dir          # Where the issued certs are kept
+crl_dir         = $dir          # Where the issued crl are kept
+database        = $dir/index.txt        # database index file.
+#unique_subject = no                    # Set to 'no' to allow creation of
+                                        # several ctificates with same subject.
+new_certs_dir   = $dir          # default place for new certs.
+
+certificate     = $dir/ca.cer   # The CA certificate
+serial          = $dir/serial           # The current serial number
+crlnumber       = $dir/crlnumber        # the current crl number
+                                        # must be commented out to leave a V1 CRL
+crl             = $dir/crl.pem          # The current CRL
+private_key     = $dir/ca.key   # The private key
+
+x509_extensions = usr_cert              # The extentions to add to the cert
+
+# Comment out the following two lines for the "traditional"
+# (and highly broken) format.
+name_opt        = ca_default            # Subject Name options
+cert_opt        = ca_default            # Certificate field options
+
+# Extension copying option: use with caution.
+# copy_extensions = copy
+
+# Extensions to add to a CRL. Note: Netscape communicator chokes on V2 CRLs
+# so this is commented out by default to leave a V1 CRL.
+# crlnumber must also be commented out to leave a V1 CRL.
+# crl_extensions        = crl_ext
+
+default_days    = 365                   # how long to certify for
+default_crl_days= 30                    # how long before next CRL
+default_md      = md_gost12_256                 # which md to use.
+preserve        = no                    # keep passed DN ordering
+```
+Создадим CRL
+```
+openssl ca -gencrl -out ca.crl dgst:gost
+```
+
+Перешлём нужные файлы на машины
+```
+scp ca.crl ca.cer user@hq-cli:/home/user
 scp web.* net_admin@hq-rtr:/home/net_admin
 ```
 
@@ -734,8 +789,10 @@ apt-get install cprocsp-curl* lsb-cprocsp-base* lsb-cprocsp-capilite* lsb-cprocs
 ./install.sh
 ln /opt/cprocsp/bin/amd64/* /bin
 certmgr -install -store -mRoot -file /etc/pki/ca-trust/source/anchors/ca.cer #Вводим "o"
+certmgr -install -store mRoot -crl -file /home/user/ca.crl
 ```
-Включим поддержку шифрования по ГОСТу в яндексе, для этого перейдём в Три полоски сверху> Настройки > Системные > Подключаться к сайтам использующим шифрование ГОСТ
+Включим поддержку шифрования по ГОСТу в яндексе, для этого нажать "Три полоски" (сверху правее)> Настройки > Системные > Подключаться к сайтам использующим шифрование ГОСТ
+
 Проверить открыв в яндекс браузере https://wiki.au-team.irpo, если нет предупреждений то всё сработало
 
 
@@ -911,23 +968,35 @@ docker compose -f zabbix.yml up -d
 ```
 vim /etc/bind/zone/au-team.irpo
 ```
-Добавим строку с табами где пробелы
+Добавим строку в список записей (через табы)
 ```
-mon	IN	CNAME	hq-srv.au-team.irpo.
+mon	IN	CNAME	hq-rtr.au-team.irpo.
 ```
+Пеперазпустим DNS сервер
 ```
 systemctl restart bind
 ```
-
-### ДОНАСТРОИТЬ NGINX, зависит от ЦС
-На **HQ-SRV**
+На **HQ-RTR**
 ```
-soon
+vim /etc/nginx/sites-available.d/default.conf
 ```
-
+Добавим следующий блок в конец файла
+![](images/DemExamGuide_20250410232343425.png)
+Настроим nginx.conf
+```
+vim /etc/nginx/nginx.conf
+```
+В начале блока http добавим строку
+```
+server_names_hash_bucket_size 64;
+```
+Перезагрузим nginx
+```
+systemctl restart nginx
+```
 
 На **HQ-CLI**
-Откроем в браузере http://mon.au-team.irpo:8080
+Откроем в браузере https://mon.au-team.irpo
 Данные для входа после установки: 
 ```
 Пользователь: Admin
