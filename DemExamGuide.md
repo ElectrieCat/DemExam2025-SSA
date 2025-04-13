@@ -795,6 +795,42 @@ certmgr -install -store mRoot -crl -file /home/user/ca.crl
 
 Проверить открыв в яндекс браузере https://wiki.au-team.irpo, если нет предупреждений то всё сработало
 
+## 3 Перенастройте ip-туннель с базового до уровня туннеля, обеспечивающего шифрование трафика
+На **HQ-RTR, BR-RTR**
+```
+apt-get install -y strongswan
+```
+На **HQ-RTR**
+```
+vim /etc/strongswan/ipsec.conf
+```
+![](images/DemExamGuide_20250414001718296.png)
+```
+vim /etc/strongswan/ipsec.secrets
+```
+Добавить строку
+```
+172.16.4.2 172.16.5.2 : PSK "P@ssw0rd"
+```
+
+На **BR-RTR**
+```
+vim /etc/strongswan/ipsec.conf
+```
+![](images/DemExamGuide_20250414001737151.png)
+```
+vim /etc/strongswan/ipsec.secrets
+```
+Добавить строку
+```
+172.16.5.2 172.16.4.2 : PSK "P@ssw0rd"
+```
+На **HQ-RTR, BR-RTR**
+```
+systemctl enable --now ipsec.service
+ipsec status # Должно появиться ESTABLISHED соединение
+ip xfrm state # Появится правило для протокола gre и src,dst адресов тоннеля
+```
 
 ## 5. Настройте принт-сервер cups на сервере HQ-SRV.
 ```
