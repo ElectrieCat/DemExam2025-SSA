@@ -126,9 +126,14 @@ HostMax:        172.16.99.6
 
 На ISP настройте динамическую сетевую трансляцию в сторону
 HQ-RTR и BR-RTR для доступа к сети Интернет
-
-![](images/МетодичкаДемоэкзамен_20250326161217804.png)
-![](images/МетодичкаДемоэкзамен_20250326161535887.png)
+```
+apt-get update
+apt-get install -y iptables
+iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+iptables-save > /etc/sysconfig/iptables
+echo "iptables-restore /etc/sysconfig/iptables" > /etc/net/netup-pre
+chmod +x /etc/net/netup-pre
+```
 Так-же в файле /etc/net/sysctl.conf должна быть следующая строка 
 
 ```
@@ -256,7 +261,9 @@ do write
 На обоих роутерах сделать nat через iptables
 ```
 iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-iptables-save >> /etc/sysconfig/iptables
+iptables-save > /etc/sysconfig/iptables
+echo "iptables-restore /etc/sysconfig/iptables" > /etc/net/netup-pre
+chmod +x /etc/net/netup-pre
 ```
 
 ## 9. Настройка протокола динамической конфигурации хостов.
@@ -586,9 +593,8 @@ docker-compose -f wiki.yml down -v
 На **BR-RTR**
 ```
 iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 80 -j DNAT --to-destination 172.16.0.2:8080
-iptables-save >> /etc/sysconfig/iptables
 iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 2024 -j DNAT --to-destination 172.16.0.2:2024
-iptables-save >> /etc/sysconfig/iptables
+iptables-save > /etc/sysconfig/iptables
 ```
 
 Проверяем работу Wiki с HQ-CLI
@@ -602,7 +608,7 @@ ssh sshuser@172.16.5.2 -p 2024
 На **HQ-RTR**
 ```
 iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 2024 -j DNAT --to-destination 172.16.100.2:2024
-iptables-save >> /etc/sysconfig/iptables
+iptables-save > /etc/sysconfig/iptables
 ```
 
 Проверяем с BR-RTR
