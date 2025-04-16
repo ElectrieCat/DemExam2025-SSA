@@ -1,6 +1,6 @@
 # Топология
 ![](images/DemExamGuide_20250330171538650.png)
-## Полезности:
+## Полезности
 В процессе настройки нам понадобится скачивать пакеты, и временно до того как настроим собственный днс сервер будем использовать общедоступный, в этой методичке днс сервер колледжа:
 
 ```
@@ -258,7 +258,7 @@ do write
 
 ## 8. Настройка динамической трансляции адресов.
 Настройте динамическую трансляцию адресов для обоих офисов.
-На обоих роутерах сделать nat через iptables
+На **HQ-RTR, BR-RTR** сделать nat через iptables
 ```
 iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 iptables-save > /etc/sysconfig/iptables
@@ -836,6 +836,56 @@ vim /etc/strongswan/ipsec.secrets
 systemctl enable --now ipsec.service
 ipsec status # Должно появиться ESTABLISHED соединение
 ip xfrm state # Появится правило для протокола gre и src,dst адресов тоннеля
+```
+## 4. Настройте межсетевой экран на маршрутизаторах HQ-RTR и BR-RTR на сеть в сторону ISP
+
+На **HQ-RTR, BR-RTR**
+```
+# Запрещаем все подключения во внутреннюю сеть из интернета
+iptables -A INPUT -i eth0 -j REJECT
+iptables -A FORWARD -i eth0 -j REJECT
+# Обеспечиваем работу протоколов
+iptables -I FORWARD -i eth0 -p tcp --dport 80 -j ACCEPT
+iptables -I INPUT -i eth0 -p tcp --dport 443 -j ACCEPT
+iptables -I FORWARD -i eth0 -p tcp --dport 443 -j ACCEPT
+iptables -I FORWARD -i eth0 -p udp --dport 53 -j ACCEPT
+iptables -I INPUT -i eth0 -p udp --dport 123 -j ACCEPT
+iptables -I INPUT -i eth0 -p icmp -j ACCEPT
+iptables -I FORWARD -i eth0 -p icmp -j ACCEPT
+iptables -I INPUT -i eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+# Чтобы работала ранее настроенная переадресация
+iptables -I FORWARD -i eth0 -p tcp --dport 2024 -j ACCEPT
+# Разрешаем доступ к роутеру из интернета по ssh
+iptables -I INPUT -i eth0 -p tcp --dport 22 -j ACCEPT
+iptables-save > /etc/sysconfig/iptables
+```
+Отдельно на **BR-RTR**
+```
+iptables -I FORWARD -i eth0 -p tcp --dport 8080 -j ACCEPT
+iptables-save > /etc/sysconfig/iptables
+```
+Наглядно проверить можно с ISP, временно подключив маршруты
+```
+ip route add 172.16.X.X/X via 172.16.X.2
+```
+Для проверки можно использовать nmap и ping и другие утилиты для наглядности:
+```
+apt-get install -y nmap curl wget bind-utils
+```
+Как пользоваться
+```
+nmap IP -p PORT # Для TCP
+nmap IP -p PORT -sU # Для UDP
+wget IP:PORT
+curl IP:PORT
+curl http[s]://IP[:PORT]
+nslookup DOMAIN DNS_SRV_IP
+ping IP
+```
+Проверяем что после применения поднимется ipsec
+```
+ipsec restart
+ipsec status
 ```
 
 ## 5. Настройте принт-сервер cups на сервере HQ-SRV.
