@@ -864,11 +864,9 @@ iptables-save > /etc/sysconfig/iptables
 iptables -I FORWARD -i eth0 -p tcp --dport 8080 -j ACCEPT
 iptables-save > /etc/sysconfig/iptables
 ```
-Наглядно проверить можно с ISP, временно подключив маршруты
-```
-ip route add 172.16.X.X/X via 172.16.X.2
-```
-Для проверки можно использовать nmap и ping и другие утилиты для наглядности:
+Проверка с **HQ-RTR,BR-RTR**
+
+Проверять нужно с роутера напротив и использовать внешние адреса, для проверки можно использовать nmap, ping или для наглядности wget, curl, nslookup:
 ```
 apt-get install -y nmap curl wget bind-utils
 ```
@@ -882,7 +880,7 @@ curl http[s]://IP[:PORT]
 nslookup DOMAIN DNS_SRV_IP
 ping IP
 ```
-Проверяем что после применения поднимется ipsec
+Проверяем что после применения поднимется ipsec на роутерах
 ```
 ipsec restart
 ipsec status
