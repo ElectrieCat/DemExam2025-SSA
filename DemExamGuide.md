@@ -407,7 +407,7 @@ chmod 4755 /usr/bin/sudo
 Введем `lsblk` чтобы посмотреть диски в системе
 ```
 Используем свободные диски по 1 гигу.
-mdadm --create /dev/md0 --level=5 --raid-devicces=3 /dev/vdb /dev/vdc /dev/vdd
+mdadm --create /dev/md0 --level=5 --raid-devices=3 /dev/vdb /dev/vdc /dev/vdd
 mkfs.ext4 /dev/md0
 mkdir /raid5
 cat /proc/mdstat - Ждём пока завершится сборка
@@ -698,6 +698,9 @@ apt-get install -y yandex-browser-stable
 ```
 
 # Модуль 3
+## 1. Выполните миграцию на новый контроллер домена BR-SRV с BR-DC, являющийся наследием
+На **BR-DC** настроим подключение к сети
+
 ## 2. Выполните настройку центра сертификации на базе HQ-SRV
 
 ```
@@ -853,6 +856,7 @@ iptables -I INPUT -i eth0 -p udp --dport 123 -j ACCEPT
 iptables -I INPUT -i eth0 -p icmp -j ACCEPT
 iptables -I FORWARD -i eth0 -p icmp -j ACCEPT
 iptables -I INPUT -i eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -I FORWARD -i eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 # Чтобы работала ранее настроенная переадресация
 iptables -I FORWARD -i eth0 -p tcp --dport 2024 -j ACCEPT
 # Разрешаем доступ к роутеру из интернета по ssh
