@@ -1,0 +1,158 @@
+У меня есть задание, импорт с виндовс сервера 2019 на сервер самба на линуксе, но пока что не делай ничего с импортом, потом этим займемся, просто имей ввиду все это
+1. Выполните миграцию на новый контроллер домена BR-SRV с HQ-
+SRV, являющийся наследием:
+•
+ Для экспорта напишите сценарий, используйте для выгрузки файл
+.csv
+•
+ Произведите экспорт и последующий импорт на новый домен
+пользователей,
+ сохранив
+ логины,
+ описание
+ в
+ виде:
+ ФИО,
+ пароли,
+подключенные сетевые диски
+•
+ Произведите экспорт и последующий импорт групп и членов групп,
+кроме стандартных
+•
+ Произведите экспорт и последующий импорт подразделений, и
+входящих в них пользователей и групп
+•
+ Произведите экспорт и последующий импорт общих папок и
+разрешения к ним
+•
+ Реализуйте автоматическое монтирование общих папок на HQ-CLI
+
+И я написал ряд скриптов, 
+первый для юзеров
+# Export-Users.ps1
+Import-Module ActiveDirectory
+
+# Параметры
+$exportPath = "C:\users.csv"
+
+# Экспорт пользователей
+Get-ADUser -Filter * -Property SamAccountName, Name, Description, PasswordLastSet | 
+Select-Object SamAccountName, Name, Description | 
+Export-Csv -Path $exportPath -NoTypeInformation
+второй для групп
+# Export-Groups.ps1
+Import-Module ActiveDirectory
+
+# Параметры
+$exportPath = "C:\groups.csv"
+
+# Определите стандартные группы, которые нужно исключить
+$standardGroups = @(
+    "Domain Admins",
+    "Enterprise Admins",
+    "Schema Admins",
+    "Administrators",
+    "Users",
+    "Guests",
+    "Account Operators",
+    "Backup Operators",
+    "Print Operators",
+    "Domain Controllers",
+    "Domain Users",
+    "IIS_IUSRS",
+    "Group Policy Creator Owners",
+    "Pre-Windows 2000 Compatible Access",
+    "Windows Authorization Access Group",
+    "Denied RODC Password Replication Group",
+    "Domain Guests"  # Добавлено для исключения
+)
+
+# Экспорт групп и членов групп, исключая стандартные
+Get-ADGroup -Filter * | Where-Object { $standardGroups -notcontains $_.Name } | ForEach-Object {
+    $group = $_
+    
+    # Получаем членов группы
+    $members = Get-ADGroupMember -Identity $group | Select-Object SamAccountName
+    
+    foreach ($member in $members) {
+        [PSCustomObject]@{
+            GroupName     = $group.Name
+            MemberName    = $member.SamAccountName
+        }
+    }
+} | Export-Csv -Path $exportPath -NoTypeInformation
+третий для подразделений
+# Export-OUs.ps1
+Import-Module ActiveDirectory
+
+# Параметры
+$exportPath = "C:\OUsExport.csv"
+
+# Определите стандартные OU, которые нужно исключить
+$standardOUs = @(
+    "Users",
+    "Computers",
+    "Domain Controllers",
+    "Managed",
+    "ForeignSecurityPrincipals",
+    "System"
+)
+
+# Получаем все подразделения, исключая стандартные
+$OUs = Get-ADOrganizationalUnit -Filter * | Where-Object { 
+    $ouName = $_.Name
+    -not ($standardOUs -contains $ouName)
+} | Select-Object Name, DistinguishedName
+
+# Создаем массив для хранения данных
+$exportData = @()
+
+foreach ($ou in $OUs) {
+    # Получаем пользователей и группы в каждом подразделении
+    $members = Get-ADObject -Filter * -SearchBase $ou.DistinguishedName | Select-Object Name, ObjectClass
+    
+    foreach ($member in $members) {
+        $exportData += [PSCustomObject]@{
+            OUName         = $ou.Name
+            OUDistinguishedName = $ou.DistinguishedName
+            MemberName     = $member.Name
+            MemberType     = $member.ObjectClass
+        }
+    }
+}
+
+# Экспортируем данные в CSV файл
+$exportData | Export-Csv -Path $exportPath -NoTypeInformation
+четвертый для общих папок
+# Export-SharedFolders.ps1
+$exportPath = "C:\SharedFoldersExport.csv"
+
+# Получаем все общие папки
+$shares = Get-SmbShare
+
+# Создаем массив для хранения данных
+$exportData = @()
+
+# Список стандартных общих папок для исключения
+$standardShares = @('C$', 'ADMIN$', 'IPC$', 'print$', 'NETLOGON', 'SYSVOL')
+
+foreach ($share in $shares) {
+    # Проверяем, является ли общая папка стандартной
+    if ($standardShares -notcontains $share.Name) {
+        # Получаем разрешения для каждой общей папки
+        $permissions = Get-SmbShareAccess -Name $share.Name
+
+        foreach ($permission in $permissions) {
+            $exportData += [PSCustomObject]@{
+                ShareName      = $share.Name
+                SharePath      = $share.Path
+                Trustee        = $permission.AccountName
+                AccessRight    = $permission.AccessRight
+            }
+        }
+    }
+}
+
+# Экспортируем данные в CSV файл
+$exportData | Export-Csv -Path $exportPath -NoTypeInformation
+Во первых, соедини все эти скрипты в один и удостоверься что всё сделано ровно по заданию
