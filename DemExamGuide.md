@@ -699,6 +699,7 @@ apt-get install -y yandex-browser-stable
 
 # Модуль 3
 ## 1. Выполните миграцию на новый контроллер домена BR-SRV с BR-DC, являющийся наследием
+### !!!Доделать!!!
 
 * Скрипты искать в папке `scripts`
 
@@ -716,21 +717,6 @@ apt-get install -y yandex-browser-stable
 
 Выполнить export.ps1
 ![](images/DemExamGuide_20250425010431514.png)
-
-Залить всё содержимое из C:/AD_Migration_Export на BR-SRV в /root/ad_import
-На **BR-SRV**
-Выполнить по порядку скрипты из расположения /root/ad_import
-Каждый раз при выполнении скрипта, будет счётчик успешных операций или ошибок в выводе
-```
-# Скорее всего не работает, но попытаться можно
-sh import_ous.sh 
-sh import_groups_details.sh
-sh import_users.sh
-sh import_group_memberships.sh
-# Не работает точно
-sh configure_shares.sh
-```
-Проверить наличие подразделений, групп, пользователей можно через samba-tool
 
 ## 2. Выполните настройку центра сертификации на базе HQ-SRV
 
