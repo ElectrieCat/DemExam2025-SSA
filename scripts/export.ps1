@@ -1,6 +1,6 @@
 Import-Module ActiveDirectory
 
-# Автоматическая установка и подключение DSInternals
+# РђРІС‚РѕРјР°С‚РёС‡РµСЃРєР°СЏ СѓСЃС‚Р°РЅРѕРІРєР° Рё РїРѕРґРєР»СЋС‡РµРЅРёРµ DSInternals
 try {
     Import-Module DSInternals -ErrorAction Stop
 } catch {
@@ -30,10 +30,10 @@ function Get-NTHash($samAccountName) {
     }
 }
 
-# Получаем только группы (исключая OU)
+# РџРѕР»СѓС‡Р°РµРј С‚РѕР»СЊРєРѕ РіСЂСѓРїРїС‹ (РёСЃРєР»СЋС‡Р°СЏ OU)
 function Get-UserGroups($memberOf) {
     $groups = $memberOf | ForEach-Object {
-        # Проверяем, является ли объект группой, а не OU
+        # РџСЂРѕРІРµСЂСЏРµРј, СЏРІР»СЏРµС‚СЃСЏ Р»Рё РѕР±СЉРµРєС‚ РіСЂСѓРїРїРѕР№, Р° РЅРµ OU
         if ($_ -match '^CN=') {
             $group = Get-ADGroup -Filter {DistinguishedName -eq $_} -ErrorAction SilentlyContinue
             if ($group) {
@@ -44,7 +44,7 @@ function Get-UserGroups($memberOf) {
     return $groups -join '; '
 }
 
-# Пользователи
+# РџРѕР»СЊР·РѕРІР°С‚РµР»Рё
 $users = Get-ADUser -Filter * -Properties Name, SamAccountName, Description, DistinguishedName, MemberOf |
 Where-Object { -not (Is-ExcludedDN $_.DistinguishedName) } |
 ForEach-Object {
@@ -60,7 +60,7 @@ ForEach-Object {
     }
 }
 
-# Группы
+# Р“СЂСѓРїРїС‹
 $groups = Get-ADGroup -Filter * -Properties Name, Members, DistinguishedName |
 Where-Object { -not (Is-ExcludedDN $_.DistinguishedName) } |
 ForEach-Object {
@@ -75,7 +75,7 @@ ForEach-Object {
     }
 }
 
-# Подразделения (OU)
+# РџРѕРґСЂР°Р·РґРµР»РµРЅРёСЏ (OU)
 $ous = Get-ADOrganizationalUnit -Filter * -Properties Name, DistinguishedName | ForEach-Object {
     $objects = Get-ADObject -SearchBase $_.DistinguishedName -SearchScope OneLevel -Filter * -Properties Name, ObjectClass
     [PSCustomObject]@{
@@ -86,10 +86,10 @@ $ous = Get-ADOrganizationalUnit -Filter * -Properties Name, DistinguishedName | 
     }
 }
 
-# Общие папки
+# РћР±С‰РёРµ РїР°РїРєРё
 $shares = Get-SmbShare | ForEach-Object {
     $permissions = Get-SmbShareAccess -Name $_.Name | Where-Object {
-        $_.AccountName -notmatch "Администраторы|SYSTEM"
+        $_.AccountName -notmatch "РђРґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂС‹|SYSTEM"
     } | Select-Object -ExpandProperty AccountName
     [PSCustomObject]@{
         ObjectType   = 'SharedFolder'
@@ -99,8 +99,8 @@ $shares = Get-SmbShare | ForEach-Object {
     }
 }
 
-# Объединение и экспорт
+# РћР±СЉРµРґРёРЅРµРЅРёРµ Рё СЌРєСЃРїРѕСЂС‚
 $allObjects = $users + $groups + $ous + $shares
 $allObjects | Export-Csv -Path $csvFilePath -NoTypeInformation -Encoding UTF8 -Force
 
-Write-Host "Экспорт завершен: $csvFilePath" -ForegroundColor Green
+Write-Host "Р­РєСЃРїРѕСЂС‚ Р·Р°РІРµСЂС€РµРЅ: $csvFilePath" -ForegroundColor Green
