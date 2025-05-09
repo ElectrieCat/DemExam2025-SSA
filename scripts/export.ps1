@@ -86,21 +86,8 @@ $ous = Get-ADOrganizationalUnit -Filter * -Properties Name, DistinguishedName | 
     }
 }
 
-# Общие папки
-$shares = Get-SmbShare | ForEach-Object {
-    $permissions = Get-SmbShareAccess -Name $_.Name | Where-Object {
-        $_.AccountName -notmatch "Администраторы|SYSTEM"
-    } | Select-Object -ExpandProperty AccountName
-    [PSCustomObject]@{
-        ObjectType   = 'SharedFolder'
-        Name         = $_.Name
-        Path         = $_.Path
-        Permissions  = $permissions -join '; '
-    }
-}
-
 # Объединение и экспорт
-$allObjects = $users + $groups + $ous + $shares
+$allObjects = $users + $groups + $ous
 $allObjects | Export-Csv -Path $csvFilePath -NoTypeInformation -Encoding UTF8 -Force
 
 Write-Host "Экспорт завершен: $csvFilePath" -ForegroundColor Green
