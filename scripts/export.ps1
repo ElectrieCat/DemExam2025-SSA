@@ -87,4 +87,4 @@ $shares = Get-SmbShare | ForEach-Object {
 $allObjects = $users + $groups + $ous + $shares
 $allObjects | Export-Csv -Path $csvFilePath -NoTypeInformation -Encoding UTF8 -Force
 
-Write-Host "Экспорт завершен: $csvFilePath" -ForegroundColor Green
+Write-Host "Экспорт завершен: $csvFilePath"
