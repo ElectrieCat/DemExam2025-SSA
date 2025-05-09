@@ -1,9 +1,10 @@
 $csvFilePath = 'C:\SharedFolders.csv'
-$result = Get-SmbShare | ForEach-Object {
+$shares = Get-SmbShare | ForEach-Object {
     $access = Get-SmbShareAccess -Name $_.Name
     if (-not ($access.AccountName -match 'BUILTIN')) {
         [PSCustomObject]@{
-            Name        = $_.Name
+            ObjectType  = 'Share'
+            Login       = $_.Name
             Description = $_.Description
             Permissions = ($access | % { "$($_.AccountName): $($_.AccessRight)" }) -join '; '
         }

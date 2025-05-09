@@ -22,27 +22,11 @@ function Is-ExcludedDN($dn) {
 }
 
 function Get-NTHash($samAccountName) {
-    try {
         $acct = Get-ADReplAccount -SamAccountName $samAccountName -Server $env:COMPUTERNAME
         return [BitConverter]::ToString($acct.NTHash).Replace('-', '')
-    } catch {
-        return "N/A"
-    }
 }
 
-# Получаем только группы (исключая OU)
-function Get-UserGroups($memberOf) {
-    $groups = $memberOf | ForEach-Object {
-        # Проверяем, является ли объект группой, а не OU
-        if ($_ -match '^CN=') {
-            $group = Get-ADGroup -Filter {DistinguishedName -eq $_} -ErrorAction SilentlyContinue
-            if ($group) {
-                return ($group.Name)
-            }
-        }
-    }
-    return $groups -join '; '
-}
+
 
 # Пользователи
 $users = Get-ADUser -Filter * -Properties Name, SamAccountName, Description, DistinguishedName, MemberOf |
@@ -55,8 +39,9 @@ ForEach-Object {
         FullName          = $_.Name
         Description       = $_.Description
         DistinguishedName = $_.DistinguishedName -replace ",?$domainDN$", ''
-        MemberOf          = $groups
+        Members           = $null
         NTHash            = Get-NTHash $_.SamAccountName
+        Permissions       = $null
     }
 }
 
@@ -69,8 +54,8 @@ ForEach-Object {
     }
     [PSCustomObject]@{
         ObjectType        = 'Group'
-        Name              = $_.Name
-        Members           = $members -join '; '
+        FullName              = $_.Name
+        Members           = $members -join ';'
         DistinguishedName = $_.DistinguishedName -replace ",?$domainDN$", ''
     }
 }
@@ -80,14 +65,26 @@ $ous = Get-ADOrganizationalUnit -Filter * -Properties Name, DistinguishedName | 
     $objects = Get-ADObject -SearchBase $_.DistinguishedName -SearchScope OneLevel -Filter * -Properties Name, ObjectClass
     [PSCustomObject]@{
         ObjectType        = 'OU'
-        Name              = $_.Name
+        FullName              = $_.Name
         DistinguishedName = $_.DistinguishedName -replace ",?$domainDN$", ''
-        ChildObjects      = ($objects | ForEach-Object { "$($_.Name) ($($_.ObjectClass))" }) -join '; '
+    }
+}
+
+# Экспорт сетевых шар
+$shares = Get-SmbShare | ForEach-Object {
+    $access = Get-SmbShareAccess -Name $_.Name
+    if (-not ($access.AccountName -match 'BUILTIN')) {
+        [PSCustomObject]@{
+            ObjectType  = 'Share'
+            FullName       = $_.Name
+            Description = $_.Description
+            Permissions = ($access | % { "$($_.AccountName):$($_.AccessRight)" }) -join ';'
+        }
     }
 }
 
 # Объединение и экспорт
-$allObjects = $users + $groups + $ous
+$allObjects = $users + $groups + $ous + $shares
 $allObjects | Export-Csv -Path $csvFilePath -NoTypeInformation -Encoding UTF8 -Force
 
 Write-Host "Экспорт завершен: $csvFilePath" -ForegroundColor Green
