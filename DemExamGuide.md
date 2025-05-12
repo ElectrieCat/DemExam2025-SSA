@@ -1005,71 +1005,71 @@ vim zabbix.yml
 ```
 
 ```
-    version: "3.9"
-    
-    services:
-     
-      zabbix-mariadb:
-        image: mariadb
-        container_name: zabbix-mariadb
-        hostname: zabbix-mariadb
-        restart: unless-stopped
-        environment:
-          TZ: "Europe/Moscow"
-          MYSQL_ROOT_USER: root
-          MYSQL_ROOT_PASSWORD: secret
-          MYSQL_DATABASE: zabbix
-          MYSQL_USER: zabbix
-          MYSQL_PASSWORD: zabbixpass
-        networks:
-          - default
-        volumes:
-          - /opt/zabbix/mariadb/data:/var/lib/mysql
-     
-      zabbix-server:
-        image: zabbix/zabbix-server-mysql
-        container_name: zabbix-server
-        hostname: zabbix-server
-        restart: unless-stopped
-        environment:
-          TZ: "Europe/Moscow"
-          DB_SERVER_HOST: zabbix-mariadb
-          MYSQL_USER: zabbix
-          MYSQL_PASSWORD: zabbixpass
-          ZBX_ALLOWUNSUPPORTEDDBVERSIONS=1
-        networks:
-          default:
-            ipv4_address: 172.28.0.254
-        depends_on:
-          - zabbix-mariadb
-     
-      zabbix-web:
-        image: zabbix/zabbix-web-nginx-mysql
-        container_name: zabbix-web
-        hostname: zabbix-web
-        restart: unless-stopped
-        environment:
-          TZ: "Europe/Moscow"
-          DB_SERVER_HOST: zabbix-mariadb
-          MYSQL_USER: zabbix
-          MYSQL_PASSWORD: zabbixpass
-          ZBX_SERVER_HOST: zabbix-server
-          PHP_TZ: "Europe/Moscow"
-        ports:
-          - 8080:8080
-          - 8443:8443
-        networks:
-          - default
-        depends_on:
-          - zabbix-mariadb
-          - zabbix-server
-     
+version: "3.9"
+
+services:
+ 
+  zabbix-mariadb:
+    image: mariadb
+    container_name: zabbix-mariadb
+    hostname: zabbix-mariadb
+    restart: unless-stopped
+    environment:
+      TZ: "Europe/Moscow"
+      MYSQL_ROOT_USER: root
+      MYSQL_ROOT_PASSWORD: secret
+      MYSQL_DATABASE: zabbix
+      MYSQL_USER: zabbix
+      MYSQL_PASSWORD: zabbixpass
+    networks:
+      - default
+    volumes:
+      - /opt/zabbix/mariadb/data:/var/lib/mysql
+ 
+  zabbix-server:
+    image: zabbix/zabbix-server-mysql
+    container_name: zabbix-server
+    hostname: zabbix-server
+    restart: unless-stopped
+    environment:
+      TZ: "Europe/Moscow"
+      DB_SERVER_HOST: zabbix-mariadb
+      MYSQL_USER: zabbix
+      MYSQL_PASSWORD: zabbixpass
+      ZBX_ALLOWUNSUPPORTEDDBVERSIONS=1
     networks:
       default:
-        ipam:
-          driver: default
-          config:
-            - subnet: 172.28.0.0/16
+        ipv4_address: 172.28.0.254
+    depends_on:
+      - zabbix-mariadb
+ 
+  zabbix-web:
+    image: zabbix/zabbix-web-nginx-mysql
+    container_name: zabbix-web
+    hostname: zabbix-web
+    restart: unless-stopped
+    environment:
+      TZ: "Europe/Moscow"
+      DB_SERVER_HOST: zabbix-mariadb
+      MYSQL_USER: zabbix
+      MYSQL_PASSWORD: zabbixpass
+      ZBX_SERVER_HOST: zabbix-server
+      PHP_TZ: "Europe/Moscow"
+    ports:
+      - 8080:8080
+      - 8443:8443
+    networks:
+      - default
+    depends_on:
+      - zabbix-mariadb
+      - zabbix-server
+ 
+networks:
+  default:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
 ```
 
 ```
