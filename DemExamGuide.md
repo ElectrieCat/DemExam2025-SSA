@@ -56,7 +56,7 @@ p вставить
 На всех устройствах в соответствии с таблицей записей:
 
 ```
-hostnamectl set-hostname hq-rtr.au-team.irpo
+hostnamectl hostname hq-rtr.au-team.irpo
 ```
 
 IP-адрес должен быть из приватного диапазона, в случае, если сеть
