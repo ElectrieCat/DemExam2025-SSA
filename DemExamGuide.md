@@ -381,8 +381,7 @@ do write
 ```
 iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 iptables-save > /etc/sysconfig/iptables
-echo "iptables-restore /etc/sysconfig/iptables" > /etc/net/netup-pre
-chmod +x /etc/net/netup-pre
+systemctl enable --now iptables
 ```
 
 ## 9. Настройка протокола динамической конфигурации хостов.
