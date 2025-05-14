@@ -1,6 +1,6 @@
 # Топология
 ![](images/DemExamGuide_20250425011748678.png)
-## Полезности
+# Полезности
 В процессе настройки нам понадобится скачивать пакеты, и временно до того как настроим собственный днс сервер будем использовать общедоступный, в этой методичке днс сервер колледжа:
 
 ```
@@ -106,23 +106,83 @@ HostMax:        172.16.99.6
 
 На всех устройствах необходимо сконфигурировать IPv4
 
-Пример для HQ-SRV, на BR-SRV по аналогии
-![](images/МетодичкаДемоэкзамен_20250326195445459.png)
+Пример для HQ-SRV, на BR-SRV по аналогии c адресом 172.16.0.2/27 и шлюзом 172.16.0.1
+```
+mkdir /etc/net/ifaces/eth0
+cd /etc/net/ifaces/eth0
+echo "172.16.100.2/26" >> ipv4address
+echo "default via 172.16.100.1" >> ipv4route
+vim options
+```
+Вставить конфиг:
+```
+DISABLED=no
+ONBOOT=yes
+TYPE=eth
+BOOTPROTO=static
+```
+Применим настройки сети
+```
+systemctl restart network
+```
 
-Настройка внешнего интерфейса к ISP на br-rtr, на hq-rtr так же но с другим адресом
-![](images/МетодичкаДемоэкзамен_20250326164703711.png)
+Настройка внешнего интерфейса к **ISP** на **HQ-RTR**, на **BR-RTR** так же но с адресом 172.16.5.2/28 и шлюзом 172.16.5.1
+```
+mkdir /etc/net/ifaces/eth0
+cd /etc/net/ifaces/eth0
+echo "172.16.4.2/28" >> ipv4address
+echo "default via 172.16.4.1" >> ipv4route
+vim options
+```
+Вставить конфиг:
+```
+DISABLED=no
+ONBOOT=yes
+TYPE=eth
+BOOTPROTO=static
+```
 
 ## 2. Настройка ISP
-В /etc/net/ifaces/options/eth0
-
-![](images/МетодичкаДемоэкзамен_20250326095031967.png)
-
-Интерфейс к hq-rtr имеет такие настройки в файлах
-![](images/МетодичкаДемоэкзамен_20250326095617515.png)
-
-Интерфейс к br-rtr
-
-![](images/МетодичкаДемоэкзамен_20250326095832287.png)
+Настроим верхний интерфейс с dhcp
+```
+mkdir /etc/net/ifaces/eth0
+vim /etc/net/ifaces/eth0/options
+```
+Вставить конфиг:
+```
+DISABLED=no
+ONBOOT=yes
+TYPE=eth
+BOOTPROTO=dhcp
+```
+Настроим интерфейс **HQ-RTR**
+```
+mkdir /etc/net/ifaces/eth1
+cd /etc/net/ifaces/eth1
+echo "172.16.4.1/28" >> ipv4address 
+vim options
+```
+Вставить конфиг:
+```
+DISABLED=no
+ONBOOT=yes
+TYPE=eth
+BOOTPROTO=static
+```
+Настроим интерфейс **BR-RTR**
+```
+mkdir /etc/net/ifaces/eth2
+cd /etc/net/ifaces/eth2
+echo "172.16.5.1/28" >> ipv4address 
+vim options
+```
+Вставить конфиг:
+```
+DISABLED=no
+ONBOOT=yes
+TYPE=eth
+BOOTPROTO=static
+```
 
 На ISP настройте динамическую сетевую трансляцию в сторону
 HQ-RTR и BR-RTR для доступа к сети Интернет
@@ -131,10 +191,9 @@ apt-get update
 apt-get install -y iptables
 iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 iptables-save > /etc/sysconfig/iptables
-echo "iptables-restore /etc/sysconfig/iptables" > /etc/net/netup-pre
-chmod +x /etc/net/netup-pre
+systemctl enable --now iptables
 ```
-Так-же в файле /etc/net/sysctl.conf должна быть следующая строка 
+Так-же в файле /etc/net/sysctl.conf должна быть следующая настройка чтобы разрешить пересылку пакетов
 
 ```
 net.ipv4.ip_forward = 1
@@ -217,7 +276,7 @@ ovs-vsctl show
 ping 172.16.200.1 # Должно сработать
 ```
 ## 5. Настройка безопасного удаленного доступа на серверах HQ-SRV и BR-SRV
-Нужен днс и обновления репозитория
+Нужен временный днс и обновление репозитория
 
 В файле /etc/openssh/sshd_config
 ```
@@ -235,9 +294,53 @@ Authorized access only
 
 Проверять с помощью `ssh sshuser@172.16.100.2 -p 2024` и паролем P@ssw0rd
 ## 6. Между офисами HQ и BR необходимо сконфигурировать ip туннель
-На HQ-RTR, для BR-RTR по аналогии но поменять местами tunlocal и tunremote и поставить адрес 10.0.0.2/30
+На **HQ-RTR**
+```
+mkdir /etc/net/ifaces/tunnel
+cd /etc/net/ifaces/tunnel
+echo "10.0.0.1/30" > ipv4address
+vim options
+```
+Вставим настройки:
+```
+TYPE=iptun
+TUNTYPE=gre
+TUNLOCAL=172.16.4.2
+TUNREMOTE=172.16.5.2
+TUNOPTIONS="ttl 64"
+HOST=eth0
+ONBOOT=yes
+DISABLED=no
+BOOTPROTO=static
+```
+Перезагрузим сеть
+```
+systemctl restart network
+```
 
-![](images/МетодичкаДемоэкзамен_20250326203535653.png)
+На **BR-RTR**
+```
+mkdir /etc/net/ifaces/tunnel
+cd /etc/net/ifaces/tunnel
+echo "10.0.0.2/30" > ipv4address
+vim options
+```
+Вставим настройки:
+```
+TYPE=iptun
+TUNTYPE=gre
+TUNLOCAL=172.16.5.2
+TUNREMOTE=172.16.4.2
+TUNOPTIONS="ttl 64"
+HOST=eth0
+ONBOOT=yes
+DISABLED=no
+BOOTPROTO=static
+```
+Перезагрузим сеть
+```
+systemctl restart network
+```
 
 ## 7. Обеспечьте динамическую маршрутизацию: ресурсы одного офиса
 должны быть доступны из другого офиса. Для обеспечения динамической
@@ -283,14 +386,31 @@ chmod +x /etc/net/netup-pre
 ```
 
 ## 9. Настройка протокола динамической конфигурации хостов.
+На **HQ-RTR**
 ```
 apt-get install dhcp-server -y
 cd /etc/dhcp/
 mv dhcpd.conf.sample dhcpd.conf
 vim dhcpd.conf
 ```
+Вставим конфиг:
+```
+ddns-update-style none;
 
-![](images/МетодичкаДемоэкзамен_20250327172849007.png)
+subnet 172.16.200.0 netmask 255.255.255.240 {
+        option routers                  172.16.200.1;
+        option subnet-mask              255.255.255.240;
+
+        option domain-name              "au-team.irpo";
+        option domain-name-servers      172.16.100.2;
+
+        range 172.16.200.2 172.16.200.14;
+        default-lease-time 21600;
+        max-lease-time 43200;
+}
+
+```
+Настроим dhcp на интерфейсе
 ```
 vim /etc/sysconfig/dhcpd
 Отредактировать строку: DHSPDARGS=vl200
@@ -300,7 +420,7 @@ systemtctl enable --now dhcpd.service
 **На HQ-CLI**
 ```
 systemctl restart network
-Проверить - ip a 
+ip a # Проверка 
 ```
 
 Клиент должен получить айпи адрес т.к. стоит NetworkManager который по умолчанию включает dhcp клиент на интерфейсе
@@ -314,9 +434,39 @@ vim /etc/bind/options.conf
 ```
 
 В этом файле вносим изменения и раскомментируем параметры или пишем их сами:
-![](images/МетодичкаДемоэкзамен_20250328211606244.png)
-Добавляем зоны:
-![](images/МетодичкаДемоэкзамен_20250328211701425.png)
+```
+options {
+        version "unknown";
+        directory "/etc/bind/zone";
+        dump-file "/var/run/named/named_dump.db";
+        statistics-file "/var/run/named/named.stats";
+        recursing-file "/var/run/named/named.recursing";
+        secroots-file "/var/run/named/named.secroots";
+
+        pid-file none;
+
+        dnssec-validation no;
+        listen-on { any; };
+        listen-on-v6 { ::1; };
+        forwarders {  192.168.100.1; };
+        allow-query { any; };
+        allow-query-cache { any; };
+        allow-recursion { any; };
+};
+
+```
+
+Добавляем зоны в конце файла:
+```
+zone "au-team.irpo" {
+  type master;
+  file "/etc/bind/zone/au-team.irpo";
+};
+zone "16.172.in-addr.arpa" {
+  type master;
+  file "/etc/bind/zone/16.172.in-addr.arpa";
+};
+```
 Создаем файлы зон и конфигурируем их:
 ```
 cd /etc/bind/zone
@@ -325,15 +475,46 @@ cp localhost 16.172.in-addr.arpa
 chown 777 ./*
 ```
 
-Файл 17.172.in-addr.arpa
-![](images/МетодичкаДемоэкзамен_20250328212204982.png)
+Файл 16.172.in-addr.arpa
+```
+$TTL    1D
+@       IN      SOA     hq-srv.au-team.irpo. root.au-team.irpo. (
+                                2025020600      ; serial
+                                12H             ; refresh
+                                1H              ; retry
+                                1W              ; expire
+                                1H              ; ncache
+                        )
+@       IN      NS      hq-srv.au-team.irpo.
+1.99    IN      PTR     hq-rtr
+2.100   IN      PTR     hq-srv
+2.200   IN      PTR     hq-cli
+```
 Файл au-team.irpo
-![](images/МетодичкаДемоэкзамен_20250328212401217.png)
+```
+$TTL    1D
+@       IN      SOA     hq-srv.au-team.irpo. root.au-team.irpo. (
+                                2025020600      ; serial
+                                12H             ; refresh
+                                1H              ; retry
+                                1W              ; expire
+                                1H              ; ncache
+                        )
+        IN      NS      hq-srv.au-team.irpo.
+hq-rtr  IN      A       172.16.99.1
+br-rtr  IN      A       172.16.0.1
+hq-srv  IN      A       172.16.100.2
+hq-cli  IN      A       172.16.200.2
+br-srv  IN      A       172.16.0.2
+moodle  IN      CNAME   hq-rtr.au-team.irpo.
+wiki    IN      CNAME   hq-rtr.au-team.irpo.
+```
+Включим автозапуск dns сервера
 ```
 systemctl enable --now bind
 ```
 
-Теперь на всех устройствах можем установить этот днс сервер как основной для удобства.
+Теперь на всех машинах установим этот днс сервер как основной а так же добавим наш домен для автодополнения запросов в коротким именам.
 Не забудьте, на **HQ-CLI** по заданию dns должен быть выдан через dhcp!
 ```
 echo -e "nameserver 172.16.100.2\ndomain au-team.irpo" >> /etc/net/ifaces/lo/resolv.conf && systemctl restart network
@@ -342,7 +523,7 @@ echo -e "nameserver 172.16.100.2\ndomain au-team.irpo" >> /etc/net/ifaces/lo/res
 Примечание: 
 - Eсли презагружали сеть, то требуется перезагрузить и bind тоже
 - Eсли возникают ошибки с интерфейсом или ip адресом, то перезагрузить машину
-- Проверить правильную работу днс можно через nslookup или более углубленно через dig
+- Для отладки и проверки работы днс можно использовать nslookup и dig
 ## 11. Настройте часовой пояс на всех устройствах, согласно месту проведения экзамена.
 Требуется днс и возможно обновить репозиторий
 ```
@@ -395,6 +576,7 @@ sh import.sh
 ![](images/DemExamGuide_20250331193909284.png)
 
 На **HQ-SRV**
+
 Удалить все строки в файле /home/sshuser/bind9_flatfile до красной линии
 ![](images/DemExamGuide_20250330160424331.png)
 И затем сделать 
@@ -528,7 +710,32 @@ cd /etc/ansible
 В файле ansible.cfg раскоментируем строку `host_key_checking = False`
 
 Файл hosts должен иметь следующее содержание:
-![](images/DemExamGuide_20250331211802470.png)
+```
+[servers]
+HQ-SRV ansible_host=hq-srv
+
+[clients]
+HQ-CLI ansible_host=hq-cli
+
+[routers]
+HQ-RTR ansible_host=hq-rtr
+BR-RTR ansible_host=br-rtr
+
+[all:vars]
+ansible_ssh_pass=P@ssw0rd
+ansible_python_interpreter=/usr/bin/python3
+
+[servers:vars]
+ansible_ssh_port=2024
+ansible_ssh_user=sshuser
+
+[clients:vars]
+ansible_ssh_user=user
+ansible_ssh_pass=resu
+
+[routers:vars]
+ansible_ssh_user=net_admin
+```
 
 Проверка:
 ```
@@ -548,7 +755,34 @@ vim wiki.yml
 ```
 
 Запишем в файл следующее:
-![](images/DemExamGuide_20250402154223023.png)
+```
+version: '3'
+services:
+  wiki:
+    image: mediawiki
+    restart: always
+    ports:
+      - 8080:80
+    volumes:
+      - images:/var/www/html/images
+      - ./LocalSettings.php:/var/www/html/LocalSettings.php
+    links:
+      - mariadb
+  mariadb:
+    image: mariadb
+    restart: always
+    container_name: mariadb
+    environment:
+      MARIADB_ROOT_PASSWORD: toor
+      MARIADB_DATABASE: mediawiki
+      MARIADB_USER: wiki
+      MARIADB_PASSWORD: WikiP@ssw0rd
+    volumes:
+      - dbvolume:/var/lib/mysql
+volumes:
+  images:
+  dbvolume:
+```
 
 Поднимем контейнеры и настроим способ аутентификации для пользователя wiki:
 ```
@@ -692,8 +926,20 @@ vim /etc/nginx/sites-available.d/default.conf
 ```
 
 Заполняем так:
-![](images/DemExamGuide_20250403210132039.png)
+```
+server {
+        listen  80;
+        server_name moodle.au-team.irpo;
 
+        location /moodle {
+                proxy_pass http://hq-srv.au-team.irpo/moodle;
+        }
+        location / {
+                proxy_pass http://br-srv.au-team.irpo:8080/;
+        }
+}
+```
+Добавим сайт во включенные и добавим nginx в автозагрузку
 ```
 ln /etc/nginx/sites-available.d/default.conf /etc/nginx/sites-enables.d/
 systemctl enable --now nginx.service
@@ -813,7 +1059,26 @@ mkdir /etc/ssl/certs -p
 mv /home/net_admin/web.* /etc/ssl/certs/
 vim /etc/nginx/sites-available.d/default.conf
 ```
-![](images/DemExamGuide_20250409173931489.png)
+Настраиваем так
+```
+server {
+        listen  443 ssl;
+        server_name moodle.au-team.irpo;
+        ssl_certificate /etc/ssl/certs/web.cer;
+        ssl_certificate_key /etc/ssl/certs/web.key;
+        ssl_ciphers GOST2012-GOST8912-GOST8912:HIGH:MEDIUM;
+        ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+        ssl_prefer_server_ciphers on;
+        location /moodle {
+                proxy_pass http://hq-srv.au-team.irpo/moodle;
+        }
+        location / {
+                proxy_pass http://br-srv.au-team.irpo:8080/;
+        }
+}
+```
+
+Перезагрузим nginx
 
 ```
 systemctl restart nginx
@@ -846,7 +1111,22 @@ apt-get install -y strongswan
 ```
 vim /etc/strongswan/ipsec.conf
 ```
-![](images/DemExamGuide_20250414001718296.png)
+
+```
+conn tungre
+        left=172.16.4.2
+        leftsubnet=0.0.0.0/0
+        right=172.16.5.2
+        rightsubnet=0.0.0.0/0
+        ike=aes256-sha256-ecp256
+        esp=aes256-sha256!
+        leftprotoport=gre
+        rightprotoport=gre
+        authby=secret
+        auto=start
+        type=tunnel
+```
+
 ```
 vim /etc/strongswan/ipsec.secrets
 ```
@@ -859,7 +1139,22 @@ vim /etc/strongswan/ipsec.secrets
 ```
 vim /etc/strongswan/ipsec.conf
 ```
-![](images/DemExamGuide_20250414001737151.png)
+
+```
+conn tungre
+        left=172.16.5.2
+        leftsubnet=0.0.0.0/0
+        right=172.16.4.2
+        rightsubnet=0.0.0.0/0
+        ike=aes256-sha256-ecp256
+        esp=aes256-sha256!
+        leftprotoport=gre
+        rightprotoport=gre
+        authby=secret
+        auto=start
+        type=tunnel
+```
+
 ```
 vim /etc/strongswan/ipsec.secrets
 ```
@@ -997,8 +1292,23 @@ systemctl enable --now rsyslog
 ```
 vim /etc/logrotate.d/rsyslog
 ```
-
-![](images/DemExamGuide_20250406211531398.png)
+Вставим настройки
+```
+/opt/*/*.log {
+    weekly
+    size 10M
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 root root
+    sharedscripts
+    postrotate
+        /sbin/systemctl reload rsyslog > /dev/null 2>&1 || true
+    endscript
+}
+```
+Выполним
 ```
 EDITOR=vim crontab -e
 Введите:
@@ -1108,8 +1418,21 @@ systemctl restart bind
 vim /etc/nginx/sites-available.d/default.conf
 ```
 Добавим следующий блок в конец файла
-![](images/DemExamGuide_20250410232343425.png)
-Настроим nginx.conf
+```
+server {
+        listen  443 ssl;
+        server_name mon.au-team.irpo;
+        ssl_certificate /etc/ssl/certs/web.cer;
+        ssl_certificate_key /etc/ssl/certs/web.key;
+        ssl_ciphers GOST2012-GOST8912-GOST8912:HIGH:MEDIUM;
+        ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+        ssl_prefer_server_ciphers on;
+        location / {
+                proxy_pass http://hq-srv.au-team.irpo:8080/;
+        }
+}
+```
+
 ```
 vim /etc/nginx/nginx.conf
 ```
@@ -1140,9 +1463,8 @@ systemctl restart nginx
 Новый пароль два раза: P@ssw0rd
 ```
 
-![](images/DemExamGuide_20250406223654108.png)
-
 На **HQ-RTR, HQ-SRV, BR-RTR и BR-SRV**
+
 От root
 ```
 apt-get install -y zabbix-agent
@@ -1168,8 +1490,26 @@ systemctl enable --now zabbix_agentd.service
 mkdir /etc/ansible/PC_INFO
 vim /etc/ansible/PC_INFO/playbook.yml
 ```
+Вставим конфиг
+```
+- name: PC-INFO
+  hosts: servers, clients
 
-![](images/DemExamGuide_20250406223654108.png)
+  tasks:
+  - name: Report hostname
+    lineinfile:
+      path: /etc/ansible/PC_INFO/{{ ansible_hostname }}.yml
+      line: "PC Name: {{ ansible_hostname }} \n"
+      create: true
+    delegate_to: 127.0.0.1
+
+  - name: Add IP to report
+    lineinfile:
+      path: /etc/ansible/PC_INFO/{{ ansible_hostname }}.yml
+      line: "IP address: {{ ansible_default_ipv4.address }} \n"
+      create: true
+    delegate_to: 127.0.0.1
+```
 
 ```
 ansible-playbook /etc/ansible/PC_INFO/playbook.yml
@@ -1177,7 +1517,7 @@ ansible-playbook /etc/ansible/PC_INFO/playbook.yml
 
 Если всё успешно, в папке PC_INFO появятся два файла с отчетом о машинах
 
-Дополнительно если что-то не так, для отладки синтаксиса плейбука можно использовать пакет и утилиту ansible-lint
+Дополнительно если что-то не так, для отладки синтаксиса плейбука можно установить пакет и использовать утилиту ansible-lint
 
 ## 9. Реализуйте механизм резервного копирования конфигурации для машин HQ-RTR и BR-RTR, через Ansible на BR-SRV
 
@@ -1185,8 +1525,49 @@ ansible-playbook /etc/ansible/PC_INFO/playbook.yml
 mkdir /etc/ansible/NETWORK_INFO
 vim /etc/ansible/net.yml
 ```
+Вставим конфиг
+```
+- name: Backup configs
+  hosts: HQ-RTR, BR-RTR
+  tasks:
+    - name: Get OSPF confs
+      fetch:
+        src: /etc/frr/frr.conf
+        dest: /etc/ansible/NETWORK_INFO/{{ inventory_hostname }}/frr.conf
+        flat: yes
+      ignore_errors: yes
+    - name: Get firewall rules
+      fetch:
+        src: /etc/sysconfig/iptables
+        dest: /etc/ansible/NETWORK_INFO/{{ inventory_hostname }}/iptables
+        flat: yes
+      ignore_errors: yes
+    - name: Get network confs
+      copy:
+        remote_src: yes
+        mode: preserve
+        directory_mode: preserve
+        src: /etc/net/ifaces
+        dest: /etc/ansible/NETWORK_INFO/{{ inventory_hostname }}/
+      delegate_to: localhost
+      ignore_errors: no
 
-![](images/DemExamGuide_20250407164931623.png)
+- name: Backup for HQ-RTR
+  hosts: HQ-RTR
+  tasks:
+    - name: Get DHCP conf
+      fetch:
+        src: /etc/dhcp/dhcpd.conf
+        dest: /etc/ansible/NETWORK_INFO/{{ inventory_hostname }}/dhcpd.conf
+        flat: yes
+      ignore_errors: yes
+    - name: Check NETWORK_INFO exists
+      delegate_to: 127.0.0.1
+      file:
+        path: /etc/ansible/NETWORK_INFO/{{ inventory_hostname }}
+        state: directory
+
+```
 
 На **BR-RTR, HQ-RTR**
 ```
