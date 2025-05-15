@@ -56,7 +56,7 @@ p вставить
 На всех устройствах в соответствии с таблицей записей:
 
 ```
-hostnamectl hostname hq-rtr.au-team.irpo
+hostnamectl hostname hq-rtr.au-team.irpo; exec bash
 ```
 
 IP-адрес должен быть из приватного диапазона, в случае, если сеть
