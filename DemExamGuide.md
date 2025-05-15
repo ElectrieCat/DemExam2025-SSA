@@ -47,10 +47,12 @@ p вставить
 
 В обоих режимах доступно управление курсором через стрелочки и клавиша DEL
 ```
+# Порядок настройки
+В каждом оглавлении есть номер задания, а так же номер его очереди настройки в формате [NUM], чем меньше номер тем раньше должен быть выполнен этот пункт
 
 # Модуль 1 
 
-## 1. Произведите базовую настройку устройств
+## 1. [1] Произведите базовую настройку устройств
 Настройте имена устройств согласно топологии. Используйте полное доменное имя.
 
 На всех устройствах в соответствии с таблицей записей:
@@ -141,8 +143,11 @@ ONBOOT=yes
 TYPE=eth
 BOOTPROTO=static
 ```
-
-## 2. Настройка ISP
+Применим настройки сети
+```
+systemctl restart network
+```
+## 2. [2] Настройка ISP
 Настроим верхний интерфейс с dhcp
 ```
 mkdir /etc/net/ifaces/eth0
@@ -155,7 +160,7 @@ ONBOOT=yes
 TYPE=eth
 BOOTPROTO=dhcp
 ```
-Настроим интерфейс **HQ-RTR**
+Настроим интерфейс к **HQ-RTR**
 ```
 mkdir /etc/net/ifaces/eth1
 cd /etc/net/ifaces/eth1
@@ -169,7 +174,7 @@ ONBOOT=yes
 TYPE=eth
 BOOTPROTO=static
 ```
-Настроим интерфейс **BR-RTR**
+Настроим интерфейс к **BR-RTR**
 ```
 mkdir /etc/net/ifaces/eth2
 cd /etc/net/ifaces/eth2
@@ -183,12 +188,9 @@ ONBOOT=yes
 TYPE=eth
 BOOTPROTO=static
 ```
-
 На ISP настройте динамическую сетевую трансляцию в сторону
 HQ-RTR и BR-RTR для доступа к сети Интернет
 ```
-apt-get update
-apt-get install -y iptables
 iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 iptables-save > /etc/sysconfig/iptables
 systemctl enable --now iptables
@@ -229,7 +231,7 @@ passwd net_admin
 ```
 
 Проверка такая-же но входить как net_admin
-## 4. Настройте на интерфейсе HQ-RTR в сторону офиса HQ виртуальный коммутатор:
+## 4. [3] Настройте на интерфейсе HQ-RTR в сторону офиса HQ виртуальный коммутатор:
 Создаем папки интерфейсов
 ```
 cd /etc/net/ifaces
@@ -237,12 +239,12 @@ mkdir eth1.100
 mkdir eth1.200
 mkdir eth1.999
 ```
-В каждой папке файл options
+В каждой папке файл options с соответствующим VID (100,200,999)
 ```
-DISABLED=no
-ONBOOT=yes
+TYPE=ovsport
+BRIDGE=HQ-SW
+VID=100
 BOOTPROTO=static
-TYPE=dummy
 ```
 В каждой папке файл ipv4address, с соответствующим адресом для влана
 ```
@@ -250,16 +252,23 @@ TYPE=dummy
 172.16.200.1/28 #  eth1.200
 172.16.99.1/29 #  eth1.999
 ```
+Настроим так наш бридж HQ-SW
+```
+mkdir eth1
+mkdir HQ-SW
+echo "TYPE=ovsbr" > HQ-SW/options
+```
 Настроим openvswitch
 ```
 systemctl enable --now openvswitch
-ovs-vsctl add-br HQ-SW
-ovs-vsctl add-port HQ-SW eth1.100 tag=100 -- set Interface eth1.100 type=internal
-ovs-vsctl add-port HQ-SW eth1.200 tag=200 -- set Interface eth1.200 type=internal
-ovs-vsctl add-port HQ-SW eth1.999 tag=999 -- set Interface eth1.999 type=internal
-ovs-vsctl add-port SW ens33 trunk=100,200 vlan_mode=trunk
+systemctl restart network
+ovs-vsctl add-port HQ-SW eth1 trunk=100,200 vlan_mode=trunk
 ```
-Перезагрузим сеть
+В файле default/options отключим затирание при перезагрузке
+```
+OVS_REMOVE=no
+```
+Перезагрузим сеть на всякий случай
 ```
 systemctl restart network openvswitch
 ```
@@ -269,7 +278,25 @@ ovs-vsctl show
 ```
 Должно вывести:
 ```
-!!!Ожидается!!!
+    Bridge HQ-SW
+        Port eth1
+            trunks: [100, 200]
+            Interface eth1
+        Port eth1.100
+            tag: 100
+            Interface eth1.100
+                type: internal
+        Port HQ-SW
+            Interface HQ-SW
+                type: internal
+        Port eth1.999
+            tag: 999
+            Interface eth1.999
+                type: internal
+        Port eth1.200
+            tag: 200
+            Interface eth1.200
+                type: internal
 ```
 На **HQ-SRV**
 ```
