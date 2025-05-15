@@ -112,8 +112,8 @@ HostMax:        172.16.99.6
 ```
 mkdir /etc/net/ifaces/eth0
 cd /etc/net/ifaces/eth0
-echo "172.16.100.2/26" >> ipv4address
-echo "default via 172.16.100.1" >> ipv4route
+echo "172.16.100.2/26" > ipv4address
+echo "default via 172.16.100.1" > ipv4route
 vim options
 ```
 Вставить конфиг:
@@ -132,8 +132,8 @@ systemctl restart network
 ```
 mkdir /etc/net/ifaces/eth0
 cd /etc/net/ifaces/eth0
-echo "172.16.4.2/28" >> ipv4address
-echo "default via 172.16.4.1" >> ipv4route
+echo "172.16.4.2/28" > ipv4address
+echo "default via 172.16.4.1" > ipv4route
 vim options
 ```
 Вставить конфиг:
@@ -142,6 +142,10 @@ DISABLED=no
 ONBOOT=yes
 TYPE=eth
 BOOTPROTO=static
+```
+Так-же в файле /etc/net/sysctl.conf на обоих роутерах должна быть следующая настройка чтобы разрешить пересылку пакетов
+```
+net.ipv4.ip_forward = 1
 ```
 Применим настройки сети
 ```
@@ -164,7 +168,7 @@ BOOTPROTO=dhcp
 ```
 mkdir /etc/net/ifaces/eth1
 cd /etc/net/ifaces/eth1
-echo "172.16.4.1/28" >> ipv4address 
+echo "172.16.4.1/28" > ipv4address 
 vim options
 ```
 Вставить конфиг:
@@ -178,7 +182,7 @@ BOOTPROTO=static
 ```
 mkdir /etc/net/ifaces/eth2
 cd /etc/net/ifaces/eth2
-echo "172.16.5.1/28" >> ipv4address 
+echo "172.16.5.1/28" > ipv4address 
 vim options
 ```
 Вставить конфиг:
@@ -188,7 +192,25 @@ ONBOOT=yes
 TYPE=eth
 BOOTPROTO=static
 ```
-На ISP настройте динамическую сетевую трансляцию в сторону
+Так-же на **BR-RTR** настроим адрес на eth1
+```
+mkdir /etc/net/ifaces/eth1
+cd /etc/net/ifaces/eth1
+echo "172.16.0.1/27" > ipv4address
+vim options
+```
+Вставим конфиг
+```
+DISABLED=no
+ONBOOT=yes
+TYPE=eth
+BOOTPROTO=static
+```
+Перезагрузим сеть
+```
+systemctl restart network
+```
+На **ISP** настройте динамическую сетевую трансляцию в сторону
 HQ-RTR и BR-RTR для доступа к сети Интернет
 ```
 iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
@@ -205,7 +227,10 @@ net.ipv4.ip_forward = 1
 ```
 systemctl restart network
 ```
-
+Проверим работоспособность с **ISP**,**HQ-RTR**,**BR-RTR**
+```
+ping 1.1.1.1
+```
 ## 3. Создание локальных учетных записей
 Везде добавить временный днс сервер перед настройкой и обновить репозиторий
 **На HQ-SRV и BR-SRV**
@@ -320,7 +345,7 @@ Authorized access only
 `systemctl enable --now sshd`
 
 Проверять с помощью `ssh sshuser@172.16.100.2 -p 2024` и паролем P@ssw0rd
-## 6. Между офисами HQ и BR необходимо сконфигурировать ip туннель
+## 6. [4] Между офисами HQ и BR необходимо сконфигурировать ip туннель
 На **HQ-RTR**
 ```
 mkdir /etc/net/ifaces/tunnel
@@ -368,17 +393,21 @@ BOOTPROTO=static
 ```
 systemctl restart network
 ```
+Проверим работоспособность
+```
+ping 10.0.0.1
+```
+## 7. [6] Обеспечьте динамическую маршрутизацию
 
-## 7. Обеспечьте динамическую маршрутизацию: ресурсы одного офиса
-должны быть доступны из другого офиса. Для обеспечения динамической
-маршрутизации используйте link state протокол на ваше усмотрение.
-
-Возможно понадобится поставить временный dns
-
+Поставим временный днс на обоих роутерах
+```
+echo "nameserver 192.168.100.1" > /etc/resolv.conf
+```
 Будем использовать OSPF, приступим к настройке и установке для HQ-RTR и по аналогии ставим так-же на BR-RTR:
 ```
-apt-get install frr -y
-ospfd=yes в /etc/frr/daemons
+apt-get install frr -y 
+vim /etc/frr/daemons
+Настроим ospfd=yes
 systemctl enable frr --now
 ```
 
@@ -390,7 +419,7 @@ vtysh
 
 conf t
 router ospf
-network x.x.x.x area 0 (Все кроме wan)
+network X.X.X.X/X area 0 (Все кроме wan)
 passive-interface default
 ex
 
@@ -399,10 +428,23 @@ no ip ospf passive
 ip ospf authentication
 ip ospf authentication-key P@ssw0rd
 do write
+#CTRL+C чтобы выйти или ex чтобы выйти в предыдущее меню
 ```
 По аналогии делаем со вторым роутером, проверить через `show ip ospf neighbor` и если сосед появился то всё ок.
+Так же с **HQ-SRV** пинганём **BR-SRV**
+```
+ping 172.16.0.2
+```
 
-## 8. Настройка динамической трансляции адресов.
+Если что-то не работает, можно проверить что нет настройки
+`no ip forwarding`
+И что есть настройка в интерфейсе tunnel
+`ip ospf network broadcast`
+А так же что включена пересылка пакетов
+```
+sysctl -a | grep "net.ipv4.ip_forward" # должно быть 1
+```
+## 8. [5] Настройка динамической трансляции адресов.
 Настройте динамическую трансляцию адресов для обоих офисов.
 На **HQ-RTR, BR-RTR** сделать nat через iptables
 ```
@@ -410,7 +452,10 @@ iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
 iptables-save > /etc/sysconfig/iptables
 systemctl enable --now iptables
 ```
-
+Проверим содержание таблицы nat в iptables
+```
+iptables -L -t nat
+```
 ## 9. Настройка протокола динамической конфигурации хостов.
 На **HQ-RTR**
 ```
@@ -452,9 +497,10 @@ ip a # Проверка
 Клиент должен получить айпи адрес т.к. стоит NetworkManager который по умолчанию включает dhcp клиент на интерфейсе
 ![](images/МетодичкаДемоэкзамен_20250327173234603.png)
 
-## 10. Настройка DNS для офисов HQ и BR.
+## 10. [?] Настройка DNS для офисов HQ и BR.
 **На HQ-SRV**
 ```
+echo "nameserver 192.168.100.1" > /etc/resolv.conf
 apt-get install bind bind-utils -y
 vim /etc/bind/options.conf
 ```
@@ -498,7 +544,7 @@ zone "16.172.in-addr.arpa" {
 cd /etc/bind/zone
 cp localhost au-team.irpo
 cp localhost 16.172.in-addr.arpa
-chown 777 ./*
+chown root:named au-team.irpo 16.172.in-addr.arpa
 ```
 
 Файл 16.172.in-addr.arpa
@@ -540,10 +586,11 @@ wiki    IN      CNAME   hq-rtr.au-team.irpo.
 systemctl enable --now bind
 ```
 
-Теперь на всех машинах установим этот днс сервер как основной а так же добавим наш домен для автодополнения запросов в коротким именам.
+Теперь на всех машинах установим этот днс сервер как основной а так же добавим наш домен для автодополнения запросов по коротким именам.
 Не забудьте, на **HQ-CLI** по заданию dns должен быть выдан через dhcp!
+При применении этого на **HQ-SRV** так же после нужно перезагрузить **bind**
 ```
-echo -e "nameserver 172.16.100.2\ndomain au-team.irpo" >> /etc/net/ifaces/lo/resolv.conf && systemctl restart network
+echo -e "nameserver 172.16.100.2\ndomain au-team.irpo" > /etc/net/ifaces/lo/resolv.conf && systemctl restart network
 ```
 
 Примечание: 
