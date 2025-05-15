@@ -256,20 +256,20 @@ BOOTPROTO=static
 ```
 mkdir eth1
 mkdir HQ-SW
-echo "TYPE=ovsbr" > HQ-SW/options
+vim HQ-SW/options
 ```
-Настроим openvswitch
+Вставим конфиг
 ```
-systemctl enable --now openvswitch
-systemctl restart network
-ovs-vsctl add-port HQ-SW eth1 trunk=100,200 vlan_mode=trunk
+TYPE=ovsbr
+HOST='eth1'
 ```
 В файле default/options отключим затирание при перезагрузке
 ```
 OVS_REMOVE=no
 ```
-Перезагрузим сеть на всякий случай
+Применим все настройки
 ```
+systemctl enable --now openvswitch
 systemctl restart network openvswitch
 ```
 Проверим работоспособность маршрутизации между сетями вланов и настройку бриджа
