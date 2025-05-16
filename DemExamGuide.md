@@ -231,31 +231,38 @@ systemctl restart network
 ```
 ping 1.1.1.1
 ```
-## 3. Создание локальных учетных записей
-Везде добавить временный днс сервер перед настройкой и обновить репозиторий
+## 3. [9] Создание локальных учетных записей
 **На HQ-SRV и BR-SRV**
 ```
 apt-get install sudo -y
 useradd -u 1010 sshuser
 usermod -aG wheel sshuser
 passwd sshuser
-Дважды вводим P@ssw0rd
+# Дважды вводим P@ssw0rd
+vim /etc/sudoers
 В файле /etc/sudoers раскомментить строку WHEEL_USERS ALL=(ALL:ALL) NOPASSWD: ALL
 Примечание: при редактировании через что либо кроме visudo этот файл - ro, чтобы его записать в виме введите :wq!
 ```
 
-Чтобы проверить, выйдите из-под root и зайдите как sshuser с ранее прописанным паролем, затем введите `sudo -i` и привилегии должны быть повышены без запроса пароля
+Проверка
+```
+id sshuser
+sudo -i
+```
 **На HQ-RTR и BR-RTR**
 ```
 apt-get install sudo -y
 useradd net_admin
 usermod -aG wheel net_admin
 passwd net_admin
-Дважды вводим P@ssw0rd
+# Дважды вводим P@ssword
+vim /etc/sudoers
 В файле /etc/sudoers раскомментить строку WHEEL_USERS ALL=(ALL:ALL) NOPASSWD: ALL
 ```
-
-Проверка такая-же но входить как net_admin
+Проверка
+```
+sudo -i
+```
 ## 4. [3] Настройте на интерфейсе HQ-RTR в сторону офиса HQ виртуальный коммутатор:
 Создаем папки интерфейсов
 ```
@@ -327,24 +334,24 @@ ovs-vsctl show
 ```
 ping 172.16.200.1 # Должно сработать
 ```
-## 5. Настройка безопасного удаленного доступа на серверах HQ-SRV и BR-SRV
-Нужен временный днс и обновление репозитория
-
-В файле /etc/openssh/sshd_config
+## 5. [10] Настройка безопасного удаленного доступа на серверах HQ-SRV и BR-SRV
+```
+vim /etc/openssh/sshd_config
+```
+Настроим
 ```
 Port 2024
 AllowUsers sshuser
 MaxAuthTries 2
 Banner /etc/motd
 ```
-
-В файле /etc/motd
+Запишем баннер и включим sshd
 ```
-Authorized access only
+echo "Authorized access only" > /etc/motd
+systemctl enable --now sshd
 ```
-`systemctl enable --now sshd`
 
-Проверять с помощью `ssh sshuser@172.16.100.2 -p 2024` и паролем P@ssw0rd
+Проверим с тех же HQ-SRV,BR-SRV с помощью `ssh sshuser@localhost -p 2024` и паролем P@ssw0rd
 ## 6. [4] Между офисами HQ и BR необходимо сконфигурировать ip туннель
 На **HQ-RTR**
 ```
@@ -456,8 +463,9 @@ systemctl enable --now iptables
 ```
 iptables -L -t nat
 ```
-## 9. Настройка протокола динамической конфигурации хостов.
+## 9. [8] Настройка протокола динамической конфигурации хостов.
 На **HQ-RTR**
+Установим и настроим dhcp сервер
 ```
 apt-get install dhcp-server -y
 cd /etc/dhcp/
@@ -484,23 +492,31 @@ subnet 172.16.200.0 netmask 255.255.255.240 {
 Настроим dhcp на интерфейсе
 ```
 vim /etc/sysconfig/dhcpd
-Отредактировать строку: DHSPDARGS=vl200
+Отредактировать строку: DHSPDARGS=eth1.200
 systemtctl enable --now dhcpd.service
 ```
 
 **На HQ-CLI**
 ```
-systemctl restart network
-ip a # Проверка 
+systemctl restart NetworkManager # Чтоб наверняка
+```
+Проверка 
+```
+ip a
+cat /etc/resolv.conf 
 ```
 
 Клиент должен получить айпи адрес т.к. стоит NetworkManager который по умолчанию включает dhcp клиент на интерфейсе
 ![](images/МетодичкаДемоэкзамен_20250327173234603.png)
 
-## 10. [?] Настройка DNS для офисов HQ и BR.
+## 10. [7] Настройка DNS для офисов HQ и BR.
 **На HQ-SRV**
+Установим временный днс сервер
 ```
 echo "nameserver 192.168.100.1" > /etc/resolv.conf
+```
+Начнём установку bind
+```
 apt-get install bind bind-utils -y
 vim /etc/bind/options.conf
 ```
@@ -588,22 +604,27 @@ systemctl enable --now bind
 
 Теперь на всех машинах установим этот днс сервер как основной а так же добавим наш домен для автодополнения запросов по коротким именам.
 Не забудьте, на **HQ-CLI** по заданию dns должен быть выдан через dhcp!
-При применении этого на **HQ-SRV** так же после нужно перезагрузить **bind**
+При применении этого на **HQ-SRV** так же после нужно перезагрузить bind
 ```
 echo -e "nameserver 172.16.100.2\ndomain au-team.irpo" > /etc/net/ifaces/lo/resolv.conf && systemctl restart network
 ```
-
+Проверка
+```
+ping hq-rtr
+```
 Примечание: 
 - Eсли презагружали сеть, то требуется перезагрузить и bind тоже
 - Eсли возникают ошибки с интерфейсом или ip адресом, то перезагрузить машину
 - Для отладки и проверки работы днс можно использовать nslookup и dig
-## 11. Настройте часовой пояс на всех устройствах, согласно месту проведения экзамена.
-Требуется днс и возможно обновить репозиторий
+## 11. [11] Настройте часовой пояс на всех устройствах, согласно месту проведения экзамена.
 ```
 apt-get install tzdata -y
 timedatectl set-timezone Europe/Moscow
 ```
-
+Проверим
+```
+timedatectl
+```
 # Модуль 2
 ## 1. Настройте доменный контроллер Samba на машине BR-SRV.
 ```
