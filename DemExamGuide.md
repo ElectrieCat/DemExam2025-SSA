@@ -627,12 +627,13 @@ timedatectl
 ```
 # Модуль 2
 ## 1. Настройте доменный контроллер Samba на машине BR-SRV.
+Параметры установки домена, которые не указаны ниже оставляем по умолчанию - нажимаем "Enter".
 ```
 apt-get install samba-dc -y
 rm -f /etc/samba/smb.conf
 rm -f /etc/krb5.conf
 samba-tool domain provision
-Днс датабаза: BIND9_FLATFILE
+DNS backend: BIND9_FLATFILE
 Пароль администратора и пользователей - P@ssw0rd
 samba-tool group add hq
 samba-tool user add user<1-5>.hq P@ssw0rd
@@ -642,6 +643,16 @@ systemctl enable --now samba
 ```
 
 Импорт пользователей:
+Если на момент подготовки не будет файла "users.csv", его можно создать вручную
+```
+vim /opt/users.csv
+
+usr1,long!pass1
+usr2,long!pass2
+usr3,long!pass3
+usr4,long!pass4
+```
+Напишем скрипт:
 ```
 cd /opt
 vim import.sh
@@ -671,11 +682,12 @@ sh import.sh
 
 На **HQ-SRV**
 
-Удалить все строки в файле /home/sshuser/bind9_flatfile до красной линии
+Удалить все строки сверху в файле /home/sshuser/bind9_flatfile до красной линии
 ![](images/DemExamGuide_20250330160424331.png)
+
 И затем сделать 
 ```
-cat bind9_flatfile >> /etc/bind/zone/au-team.irpo
+cat /home/sshuser/bind9_flatfile >> /etc/bind/zone/au-team.irpo
 systemctl restart bind
 ```
 
