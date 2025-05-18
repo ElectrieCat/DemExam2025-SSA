@@ -822,10 +822,15 @@ apt-get install -y python3
 apt-get install -y ansible
 cd /etc/ansible
 ```
-
+```
+vim ansible.cfg
+```
 В файле ansible.cfg раскоментируем строку `host_key_checking = False`
-
-Файл hosts должен иметь следующее содержание:
+Отредактируем файл hosts:
+```
+vim hosts
+```
+Файл должен иметь следующее содержание:
 ```
 [servers]
 HQ-SRV ansible_host=hq-srv
@@ -864,8 +869,8 @@ ansible -m ping all
 ## 5. Развертывание приложений в Docker на сервере BR-SRV.
 ```
 apt-get install -y docker-engine docker-compose
-ln /usr/lib/docker/cli-pluigns/docker-compose /bin/
-systemcl enable --now docker
+ln /usr/lib/docker/cli-plugins/docker-compose /bin/
+systemctl enable --now docker
 cd /root
 vim wiki.yml
 ```
@@ -881,7 +886,7 @@ services:
       - 8080:80
     volumes:
       - images:/var/www/html/images
-      - ./LocalSettings.php:/var/www/html/LocalSettings.php
+      #- ./LocalSettings.php:/var/www/html/LocalSettings.php
     links:
       - mariadb
   mariadb:
@@ -907,6 +912,8 @@ systemctl enable --now sshd
 ```
 
 На **HQ-CLI**
+Авторизируемся под пользователем "user"
+
 Через браузер открываем 172.16.0.2:8080
 ![](images/DemExamGuide_20250402011827882.png)
 Ставим русский язык
@@ -924,8 +931,10 @@ systemctl enable --now sshd
 Вас перебросит на эту страницу и автоматичеки скачается файл с настройками, если он не скачался нажмите `Загрузить`
 ![](images/DemExamGuide_20250402021137986.png)
 
-Теперь отправляем этот файл на BR-SRV
+Теперь необходимо отправить этот файл на BR-SRV.
+Зайдем в консоль и перейдем под root:
 ```
+cd /home/user/Загрузки
 scp -P 2024 LocalSettings.php sshuser@br-srv:/home/sshuser/
 ```
 
@@ -960,7 +969,7 @@ docker-compose -f wiki.yml down -v
 ```
 iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 80 -j DNAT --to-destination 172.16.0.2:8080
 iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 2024 -j DNAT --to-destination 172.16.0.2:2024
-iptables-save > /etc/sysconfig/iptables
+iptables-save >> /etc/sysconfig/iptables
 ```
 
 Проверяем работу Wiki с HQ-CLI
@@ -974,7 +983,7 @@ ssh sshuser@172.16.5.2 -p 2024
 На **HQ-RTR**
 ```
 iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 2024 -j DNAT --to-destination 172.16.100.2:2024
-iptables-save > /etc/sysconfig/iptables
+iptables-save >> /etc/sysconfig/iptables
 ```
 
 Проверяем с BR-RTR
@@ -1057,7 +1066,7 @@ server {
 ```
 Добавим сайт во включенные и добавим nginx в автозагрузку
 ```
-ln /etc/nginx/sites-available.d/default.conf /etc/nginx/sites-enables.d/
+ln /etc/nginx/sites-available.d/default.conf /etc/nginx/sites-enabled.d/
 systemctl enable --now nginx.service
 ```
 
