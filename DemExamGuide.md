@@ -711,9 +711,9 @@ chmod 4755 /usr/bin/sudo
 Введем `lsblk` чтобы посмотреть диски в системе
 ```
 Используем свободные диски по 1 гигу.
-mdadm --create /dev/md0 --level=5 --raid-devices=3 /dev/vdb /dev/vdc /dev/vdd
+mdadm --create /dev/md0 --level=0 --raid-devices=3 /dev/vdb /dev/vdc /dev/vdd
 mkfs.ext4 /dev/md0
-mkdir /raid5
+mkdir /raid0
 cat /proc/mdstat - Ждём пока завершится сборка
 mdadm --detail --scan >> /etc/mdadm.conf
 vim /etc/fstab
@@ -721,18 +721,22 @@ vim /etc/fstab
 
 Между элементов - табы
 ```
-/dev/md0	/raid5	ext4	defaults	0	0
+/dev/md0	/raid0	ext4	defaults	0	0
+```
+Попробуем смонтировать raid
+```
+mount -a
 ```
 Настроим nfs
 ```
 apt-get install rpcbind nfs-server -y
-mkdir /raid5/nfs
+mkdir /raid0/nfs
 systemtl enable --now nfs
 vim /etc/exports
 ```
 
 ```
-/raid5/nfs 172.16.200.0/28(no_root_squash,subtree_check,rw)
+/raid0/nfs 172.16.200.0/28(no_root_squash,subtree_check,rw)
 ```
 
 ```
@@ -749,16 +753,16 @@ vim /etc/fstab
 
 Между элементами - табы
 ```
-hq-srv:/raid5/nfs	/mnt/nfs	nfs	defaults	0	0
+hq-srv:/raid0/nfs	/mnt/nfs	nfs	defaults	0	0
 ```
 Для проверки - от root
 ```
-reboot
+mount -a
 mount | grep nfs
 touch /mnt/nfs/icanwrite
 ```
 
-Раздел должен быть в выдаче grep как примонтированный и должна быть возможность записи на него
+Вывод команды: раздел должен быть в выдаче grep как примонтированный и должна быть возможность записи на него
 ## 3. Настройте службу сетевого времени на базе сервиса chrony
 На **HQ-RTR**
 ```
