@@ -770,15 +770,16 @@ apt-get install chrony -y
 vim /etc/chrony.conf
 ```
 
-Пропишем следующие настройки:
+Закомментируем строчку с пулом и пропишем под ней следующие настройки:
 ```
-#pool <POOL> iburst
-allow all
-local stratum 5 
+#pool pool.ntp.org iburst
+server 127.0.0.1 iburst
+allow 0.0.0.0/0
+local stratum 5
 ```
 
 ```
-systemctl restart chrony
+systemctl restart chronyd
 ```
 
 На **HQ-SRV, HQ-CLI, BR-RTR, BR-SRV**
@@ -786,19 +787,24 @@ systemctl restart chrony
 apt-get install chrony -y
 vim /etc/chrony.conf
 ```
-
+В случае, если в файле есть данные строчки - их надо закомментировать
+```
+pool pool.ntp.org iburst
+server 192.168.100.1
+pool AU-TEAM.IRPO iburst
+```
 Пропишем следующие настройки:
 ```
-pool 172.16.99.1 iburst
+server 172.16.99.1 iburst
 ```
 
 ```
-systemctl restart chrony
+systemctl restart chronyd
 chronyc makestep
 chronyc sources
 ```
 
-Stratum должен быть 5, и статус нашего NTP сервера - ^*
+Stratum должен быть 5, и статус нашего NTP сервера - 200
 ## 4. Сконфигурируйте ansible на сервере BR-SRV
 Преднастройка машин от root:
 На **HQ-RTR, BR-RTR, CLI-HQ**
