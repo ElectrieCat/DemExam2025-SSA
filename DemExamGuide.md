@@ -731,7 +731,7 @@ mount -a
 ```
 apt-get install rpcbind nfs-server -y
 mkdir /raid0/nfs
-systemtl enable --now nfs
+systemctl enable --now nfs
 vim /etc/exports
 ```
 
