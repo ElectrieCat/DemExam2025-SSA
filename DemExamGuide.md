@@ -969,7 +969,7 @@ docker-compose -f wiki.yml down -v
 ```
 iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 80 -j DNAT --to-destination 172.16.0.2:8080
 iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 2024 -j DNAT --to-destination 172.16.0.2:2024
-iptables-save >> /etc/sysconfig/iptables
+iptables-save > /etc/sysconfig/iptables
 ```
 
 Проверяем работу Wiki с HQ-CLI
@@ -983,7 +983,7 @@ ssh sshuser@172.16.5.2 -p 2024
 На **HQ-RTR**
 ```
 iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 2024 -j DNAT --to-destination 172.16.100.2:2024
-iptables-save >> /etc/sysconfig/iptables
+iptables-save > /etc/sysconfig/iptables
 ```
 
 Проверяем с BR-RTR
