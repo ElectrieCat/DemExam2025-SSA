@@ -967,9 +967,9 @@ docker-compose -f wiki.yml down -v
 ## 6. На маршрутизаторах сконфигурируйте статическую трансляцию портов
 На **BR-RTR**
 ```
-iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 80 -j DNAT --to-destination 172.16.0.2:8080
 iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 2024 -j DNAT --to-destination 172.16.0.2:2024
-iptables-save > /etc/sysconfig/iptables
+iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 80 -j DNAT --to-destination 172.16.0.2:8080
+iptables-save -f /etc/sysconfig/iptables
 ```
 
 Проверяем работу Wiki с HQ-CLI
@@ -983,7 +983,8 @@ ssh sshuser@172.16.5.2 -p 2024
 На **HQ-RTR**
 ```
 iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 2024 -j DNAT --to-destination 172.16.100.2:2024
-iptables-save > /etc/sysconfig/iptables
+iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 80 -j DNAT --to-destination 172.16.100.2:80
+iptables-save -f /etc/sysconfig/iptables
 ```
 
 Проверяем с BR-RTR
@@ -1044,32 +1045,48 @@ systemctl restart httpd2.service
 ![](images/DemExamGuide_20250402224649769.png)
 Настройка завершена
 
-## 8. Настройте веб-сервер nginx как обратный прокси-сервер на HQ-RTR
+## 8. Настройте веб-сервер nginx как обратный прокси-сервер на ISP
 ```
 apt-get install nginx -y
-vim /etc/nginx/sites-available.d/default.conf
+vim /etc/nginx/sites-available.d/proxy.conf
 ```
 
 Заполняем так:
 ```
 server {
-        listen  80;
-        server_name moodle.au-team.irpo;
-
-        location /moodle {
-                proxy_pass http://hq-srv.au-team.irpo/moodle;
-        }
-        location / {
-                proxy_pass http://br-srv.au-team.irpo:8080/;
-        }
+ listen 80;
+ server_name moodle.au-team.irpo;
+ location / {
+  proxy_pass http://172.16.4.2:80;
+ }
+}
+server {
+ listen 80;
+ server_name wiki.au-team.irpo;
+ location / {
+  proxy_pass http://172.16.5.2:80;
+ }
 }
 ```
 Добавим сайт во включенные и добавим nginx в автозагрузку
 ```
-ln /etc/nginx/sites-available.d/default.conf /etc/nginx/sites-enabled.d/
+ln /etc/nginx/sites-available.d/proxy.conf /etc/nginx/sites-enabled.d/
 systemctl enable --now nginx.service
 ```
-
+На **HQ-SRV**
+```
+Изменим конфигурацию config.php 
+```
+$CFG->wwwroot   = 'http://moodle.au-team.irpo/moodle';
+```
+После на следующей строчке добавим новый параметр 
+```
+$CFG->reverseproxy  =  true;
+```
+Перезагрузим службу 
+```
+systemctl restart httpd2
+```
 Проверяем с HQ-CLI
 
 В браузере открываем страницы
