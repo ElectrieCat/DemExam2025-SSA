@@ -1074,7 +1074,7 @@ ln /etc/nginx/sites-available.d/proxy.conf /etc/nginx/sites-enabled.d/
 systemctl enable --now nginx.service
 ```
 На **HQ-SRV**
-```
+
 Изменим конфигурацию config.php 
 ```
 $CFG->wwwroot   = 'http://moodle.au-team.irpo/moodle';
@@ -1087,6 +1087,7 @@ $CFG->reverseproxy  =  true;
 ```
 systemctl restart httpd2
 ```
+
 Проверяем с HQ-CLI
 
 В браузере открываем страницы
