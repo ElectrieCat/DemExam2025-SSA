@@ -1196,9 +1196,8 @@ scp ca.crl ca.cer user@hq-cli:/home/user
 scp web.* net_admin@hq-rtr:/home/net_admin
 ```
 
-На **HQ-RTR**
+На **ISP**
 ```
-apt-get install nginx -y
 mkdir /etc/ssl/certs -p
 mv /home/net_admin/web.* /etc/ssl/certs/
 vim /etc/nginx/sites-available.d/default.conf
