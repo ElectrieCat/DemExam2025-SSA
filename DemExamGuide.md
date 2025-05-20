@@ -1171,7 +1171,7 @@ default_crl_days= 90                    # how long before next CRL
 default_md      = md_gost12_256         # which md to use.
 preserve        = no                    # keep passed DN ordering
 ```
-А так-же секцию req
+А так-же настроим секцию req
 ```
 [ req ]
 default_bits            = 2048
@@ -1236,7 +1236,7 @@ openssl req -new -x509 -md_gost12_256 -days 365 -key ca.key -out ca.cer -subj "/
 openssl genpkey -algorithm gost2012_256 -pkeyopt paramset:A -out web.key
 openssl req -new  -md_gost12_256 -key web.key -out web.csr -subj "/CN=*.au-team.irpo"
 openssl x509 -req -in web.csr -CA ca.cer -CAkey ca.key -CAcreateserial -out web.cer -days 365
-
+```
 
 Настроим следующие строки в файле
 ```
@@ -1285,13 +1285,11 @@ preserve        = no                    # keep passed DN ordering
 ```
 openssl ca -gencrl -out ca.crl dgst:gost
 ```
-
 Перешлём нужные файлы на машины
 ```
 scp ca.crl ca.cer user@hq-cli:/home/user
 scp web.* net_admin@hq-rtr:/home/net_admin
 ```
-
 На **ISP**
 ```
 mkdir /etc/ssl/certs -p
