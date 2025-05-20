@@ -36,7 +36,7 @@ i режим редактирования
 :wq! Принудительно записать файл
 /<слово> Поиск
 n Следующее совпадение в поиске
-N Предыдущее совпаденеи в поиске
+N Предыдущее совпадение в поиске
 dd удалить строку
 v режим выделения
 y скопировать выделенное
@@ -1124,23 +1124,119 @@ apt-get install -y yandex-browser-stable
 ![](images/DemExamGuide_20250425010431514.png)
 
 ## 2. Выполните настройку центра сертификации на базе HQ-SRV
+Отроем конфиг openssl:
+```
+vim /etc/openssl/openssl.cnf
+```
+Настроим его следующим образом
+```
+[ ca ]
+default_ca      = CA_default            # The default ca section
 
+####################################################################
+[ CA_default ]
+
+dir             = ./demoCA              # Where everything is kept
+certs           = $dir/certs            # Where the issued certs are kept
+crl_dir         = $dir/crl              # Where the issued crl are kept
+database        = $dir/index.txt        # database index file.
+#unique_subject = no                    # Set to 'no' to allow creation of
+                                        # several ctificates with same subject.
+new_certs_dir   = $dir/newcerts         # default place for new certs.
+
+certificate     = $dir/cacert.pem       # The CA certificate
+serial          = $dir/serial           # The current serial number
+crlnumber       = $dir/crlnumber        # the current crl number
+                                        # must be commented out to leave a V1 CRL
+crl             = $dir/crl.pem          # The current CRL
+private_key     = $dir/private/cakey.pem# The private key
+
+x509_extensions = usr_cert              # The extentions to add to the cert
+
+# Comment out the following two lines for the "traditional"
+# (and highly broken) format.
+name_opt        = ca_default            # Subject Name options
+cert_opt        = ca_default            # Certificate field options
+
+# Extension copying option: use with caution.
+# copy_extensions = copy
+
+# Extensions to add to a CRL. Note: Netscape communicator chokes on V2 CRLs
+# so this is commented out by default to leave a V1 CRL.
+# crlnumber must also be commented out to leave a V1 CRL.
+# crl_extensions        = crl_ext
+
+default_days    = 90                    # how long to certify for
+default_crl_days= 90                    # how long before next CRL
+default_md      = md_gost12_256         # which md to use.
+preserve        = no                    # keep passed DN ordering
+```
+А так-же секцию req
+```
+[ req ]
+default_bits            = 2048
+default_md              = md_gost12_256
+default_keyfile         = privkey.pem
+distinguished_name      = req_distinguished_name
+attributes              = req_attributes
+x509_extensions = v3_ca
+```
+Установим и включим поддержку сертификатов ГОСТ для openssl
 ```
 apt-get install -y openssl openssl-gost-engine
 control openssl-gost enabled
-cd
+```
+Преднастроим структуру файлов для нашего CA
+```
+cd /root
+mkdir demoCA
+mkdir demoCA/certs
+mkdir demoCA/crl
+mkdir demoCA/newcerts
+mkdir demoCA/private
+touch demoCA/index.txt
+echo 00 > demoCA/crlnumber
+```
+Такая структура у нас получится
+Проверим
+```
+apt-get install tree -y
+tree demoCA
+```
+Выведет следующую структуру
+```
+demoCA/
+├── certs
+├── crl
+├── crlnumber
+├── index.txt
+├── newcerts
+└── private
+```
+Сгенерируем все сертификаты
+```
+openssl genpkey -algorithm gost2012_256 -pkeyopt paramset:TCB -out ./demoCA/private/cakey.pem
+openssl req -nodes -new -x509 -key ./demoCA/private/cakey.pem -out ./demoCA/cacert.pem -subj "/CN=AU-Team-CA"
+openssl genpkey -algorithm gost2012_256 -pkeyopt paramset:A -out ./demoCA/private/web.pem
+openssl req -new -key ./demoCA/private/web.pem -out ./demoCA/certs/web.cer -subj "/CN=*.au-team.irpo"
+openssl x509 -req -in ./demoCA/certs/web.cer -CA ./demoCA/cacert.pem -CAkey ./demoCA/private/cakey.pem -CAcreateserial -out web.cer
+openssl ca -gencrl -out ./demoCA/crl/ca.crll dgst:gost
+```
+Пересылаем необходимые файлы на машины
+Примечание: у **hq-cli** IP адрес может поменяться и по доменному имени уже нельзя будет достучаться до него, тогда следует вбить его текущий адрес
+```
+scp ./demoCA/crl/ca.crl ./demoCA/cacert.pem  user@hq-cli:/home/user
+scp ./demoCA/private/web.pem demoCA/certs/web.cer  net_admin@hq-rtr:/home/net_admin
+```
+
+УСТАРЕВШЕЕ после этой строки
+```
 openssl genpkey -algorithm gost2012_256 -pkeyopt paramset:TCB -out ca.key
 openssl req -new -x509 -md_gost12_256 -days 365 -key ca.key -out ca.cer -subj "/CN=AU-Team-CA"
 openssl genpkey -algorithm gost2012_256 -pkeyopt paramset:A -out web.key
 openssl req -new  -md_gost12_256 -key web.key -out web.csr -subj "/CN=*.au-team.irpo"
 openssl x509 -req -in web.csr -CA ca.cer -CAkey ca.key -CAcreateserial -out web.cer -days 365
-```
-Преднастройка для создания CRL
-```
-touch index.txt
-echo 00 > crlnumber
-vim /var/lib/ssl/openssl.cnf
-```
+
 
 Настроим следующие строки в файле
 ```
