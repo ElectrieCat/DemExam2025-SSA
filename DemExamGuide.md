@@ -725,16 +725,7 @@ scp -P 2024 /var/lib/samba/bind-dns/dns/au-team.irpo.zone sshuser@172.16.100.2:/
 systemctl enable --now samba
 ```
 
-Импорт пользователей:
-Если на момент подготовки не будет файла "users.csv", его можно создать вручную
-```
-vim /opt/users.csv
-
-usr1,long!pass1
-usr2,long!pass2
-usr3,long!pass3
-usr4,long!pass4
-```
+Импорт пользователей
 Напишем скрипт:
 ```
 cd /opt
@@ -744,14 +735,11 @@ vim import.sh
 Содержание import.sh
 ```
 #!/bin/bash
-
-CSVFILE="users.csv"
-while IFS=',' read -r UN PW; do
-    UN=$(echo $UN | xargs)
-    PW=$(echo $PW | xargs)
-    echo "Adding user: $UN with password: $PW"
-    samba-tool user add "$UN" "$PW"
-done < "$CSVFILE"
+tail -n +2 /opt/users.csv | while IFS=';' read -r firstName lastName _ _ _ _ _ _ _ password
+do
+    username="${firstName}${lastName}"
+    samba-tool user create "$username" "$password"
+done
 ```
 
 Запуск:
@@ -760,8 +748,11 @@ sh import.sh
 ```
 
 Пример успешного выполнения:
-
-![](images/DemExamGuide_20250331193909284.png)
+```
+User 'EmmanuelBlankenship' added successfully
+User 'RobertBlevins' added successfully
+User 'RheaBolton' added successfully
+```
 
 На **HQ-SRV**
 ```
