@@ -143,7 +143,7 @@ ONBOOT=yes
 TYPE=eth
 BOOTPROTO=static
 ```
-Так-же в файле /etc/net/sysctl.conf на обоих роутерах должна быть следующая настройка чтобы разрешить пересылку пакетов
+Так-же в файле /etc/net/sysctl.conf на **HQ-RTR**,**BR-RTR** должна быть следующая настройка чтобы разрешить пересылку пакетов
 ```
 net.ipv4.ip_forward = 1
 ```
@@ -410,6 +410,10 @@ ping 10.0.0.1
 ```
 echo "nameserver 192.168.100.1" > /etc/resolv.conf
 ```
+Ранее мы должны были это настроить, но на всякий случай проверим что включена пересылка пакетов, иначе её запрет будет записан в конфиг frr при запуске и придется его отключать даже после того как включим пересылку в системе. Команда должна выдать "1" для этого параметра
+```
+sysctl -a | grep "net.ipv4.ip_forward"
+```
 Будем использовать OSPF, приступим к настройке и установке для HQ-RTR и по аналогии ставим так-же на BR-RTR:
 ```
 apt-get install frr -y 
@@ -442,14 +446,13 @@ do write
 ```
 ping 172.16.0.2
 ```
-
 Если что-то не работает, можно проверить что нет настройки
-`no ip forwarding`
-И что есть настройка в интерфейсе tunnel
-`ip ospf network broadcast`
-А так же что включена пересылка пакетов
 ```
-sysctl -a | grep "net.ipv4.ip_forward" # должно быть 1
+no ip forwarding
+```
+И что есть настройка в интерфейсе tunnel
+```
+ip ospf network broadcast
 ```
 ## 8. [5] Настройка динамической трансляции адресов.
 Настройте динамическую трансляцию адресов для обоих офисов.
@@ -624,6 +627,43 @@ timedatectl set-timezone Europe/Moscow
 Проверим
 ```
 timedatectl
+```
+## Вариатив: Измерьте пропускную способность сети между двумя офисами посредством утилиты iperf 3.
+На **HQ-RTR** и **BR-RTR**
+```
+apt-get update
+apt-get install -y iperf3
+```
+На **BR-RTR**
+```
+iperf3 -s
+```
+На **HQ-RTR**
+```
+iperf3 -c br-rtr
+```
+На обоих машинах начнётся процесс измерения пропускной способности, должно выдать примерно это:
+```
+Connecting to host br-rtr, port 5201
+[  5] local 10.0.0.1 port 37936 connected to 172.16.0.1 port 5201
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec   539 MBytes  4.52 Gbits/sec    1   1.68 MBytes       
+[  5]   1.00-2.00   sec   532 MBytes  4.46 Gbits/sec  889   1.54 MBytes       
+[  5]   2.00-3.00   sec   477 MBytes  4.00 Gbits/sec    1   1.28 MBytes       
+[  5]   3.00-4.00   sec   434 MBytes  3.64 Gbits/sec    0   1.50 MBytes       
+[  5]   4.00-5.00   sec   453 MBytes  3.80 Gbits/sec    0   1.70 MBytes       
+[  5]   5.00-6.00   sec   444 MBytes  3.72 Gbits/sec    0   1.88 MBytes       
+[  5]   6.00-7.00   sec   431 MBytes  3.61 Gbits/sec  176   1.45 MBytes       
+[  5]   7.00-8.00   sec   487 MBytes  4.08 Gbits/sec    0   1.65 MBytes       
+[  5]   8.00-9.00   sec   424 MBytes  3.55 Gbits/sec   56   1.36 MBytes       
+[  5]   9.00-10.00  sec   425 MBytes  3.57 Gbits/sec    0   1.54 MBytes       
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-10.00  sec  4.54 GBytes  3.90 Gbits/sec  1123            sender
+[  5]   0.00-10.00  sec  4.54 GBytes  3.89 Gbits/sec                  receiver
+
+iperf Done.
+[root@hq-rtr 
 ```
 # Модуль 2
 ## 1. Настройте доменный контроллер Samba на машине BR-SRV.
