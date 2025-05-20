@@ -48,7 +48,9 @@ p вставить
 В обоих режимах доступно управление курсором через стрелочки и клавиша DEL
 ```
 # Порядок настройки
-В каждом оглавлении есть номер задания, а так же номер его очереди настройки в формате [NUM], чем меньше номер тем раньше должен быть выполнен этот пункт
+В каждом оглавлении есть номер задания, а так же номер его очереди настройки в формате [NUM].
+
+Первым всегда должен выполняться пункт с наименьшим номером, для не пронумерованных пунктов порядок настройки не имеет значения.
 
 # Модуль 1 
 
@@ -666,6 +668,47 @@ iperf Done.
 [root@hq-rtr 
 ```
 # Модуль 2
+## Проверка стенда перед работой
+На все машины можно зайти с пользователем/паролем `root/toor` и `user/resu` для **HQ-CLI**)
+
+На всех машинах должно быть настроено подключение к интернету и локальный сервер dns, который так же может перенаправлять запросы в публичному серверу
+```
+ping 1.1.1.1
+ping ya.ru
+ping hq-rtr
+```
+Так-же между офисами должна быть связь
+C **HQ-SRV**
+```
+ping br-srv
+```
+Примечание:
+Адрес **HQ-CL** может измениться и обращение по имени hq-cli может перестать работать, т.к. он получает его через DHCP, вместо этого придется использовать его ipv4 адрес
+
+На всех машинах должны быть созданы пользователи, проверим можно ли в них зайти
+Проверим **HQ-SRV, BR-SRV**
+Пароль - P@ssw0rd
+```
+ssh sshuser@hq-srv -p PORT
+ssh sshuser@br-srv -p PORT
+```
+Проверим **HQ-RTR,BR-RTR**
+Зайдём на них под юзером `net_admin` с паролем P@$$word
+
+На **HQ-SRV** должны быть доступные диски
+```
+lsblk
+```
+Должно выдать следующее, доступны три диска - vdb, vdc, vdd
+```
+NAME   MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+vda    253:0    0   32G  0 disk 
+├─vda1 253:1    0  2.9G  0 part [SWAP]
+└─vda2 253:2    0 29.1G  0 part /
+vdb    253:16   0    1G  0 disk 
+vdc    253:32   0    1G  0 disk 
+vdd    253:48   0    1G  0 disk 
+```
 ## 1. Настройте доменный контроллер Samba на машине BR-SRV.
 Параметры установки домена, которые не указаны ниже оставляем по умолчанию - нажимаем "Enter".
 ```
@@ -721,8 +764,10 @@ sh import.sh
 ![](images/DemExamGuide_20250331193909284.png)
 
 На **HQ-SRV**
-
-Удалить все строки сверху в файле /home/sshuser/bind9_flatfile до красной линии
+```
+vim /home/sshuser/bind9_flatfile
+```
+Удалить все строки сверху до красной линии
 ![](images/DemExamGuide_20250330160424331.png)
 
 И затем сделать 
@@ -737,24 +782,40 @@ systemctl restart bind
 Нажать "Применить" и ввести пароль для Administrator (P@ssw0rd)
 Перезагрузить компьютер и попробовать войти под одним из пользователей домена
 
-Реализуем повышение привелегий для пользоваталей группы hq, выполнять из-под root
+Реализуем повышение привелегий для пользоваталей группы hq, в конце перезагрузим машину чтобы можно было войти с пользователем домена. 
+Выполнять из-под root:
 ```
-apt-get install sudo
+apt-get install -y sudo
 echo "%hq  ALL=(ALL) NOPASSWD: /bin/grep,/usr/bin/id,/bin/cat" >> /etc/sudoers
 chmod 4755 /usr/bin/sudo
+reboot
 ```
 
-Проверка: зайти под одним из пользователей домена и прописать `sudo id`, в начале вывода строки должно показать uid=0(root)
-
+Проверка:
+Зайти под одним из пользователей домена, напр. user1.hq и прописать следующую команду, в начале вывода строки должно показать uid=0(root)
+```
+sudo id
+```
+Так-же заодно проверим что у пользователей группы hq есть права только на выполнение ранее указанных команд
+```
+sudo cat /etc/os-release | sudo grep "ID"
+```
+Должно выдать всё без ошибок
 ## 2. Сконфигурируйте файловое хранилище
 На **HQ-SRV**
-Введем `lsblk` чтобы посмотреть диски в системе
+Посмотрим доступные диски в системе
+```
+lsblk
 ```
 Используем свободные диски по 1 гигу.
+```
 mdadm --create /dev/md0 --level=0 --raid-devices=3 /dev/vdb /dev/vdc /dev/vdd
 mkfs.ext4 /dev/md0
 mkdir /raid0
-cat /proc/mdstat - Ждём пока завершится сборка
+cat /proc/mdstat
+```
+Ждём пока завершится сборка
+```
 mdadm --detail --scan >> /etc/mdadm.conf
 vim /etc/fstab
 ```
@@ -767,6 +828,11 @@ vim /etc/fstab
 ```
 mount -a
 ```
+Проверим что наш диск примонтировался, ищем в конце строку
+```
+/dev/md0 on /raid0 type ext4 (rw,relatime,stripe=384)
+```
+
 Настроим nfs
 ```
 apt-get install rpcbind nfs-server -y
@@ -774,11 +840,11 @@ mkdir /raid0/nfs
 systemctl enable --now nfs
 vim /etc/exports
 ```
-
+Добавим следующую строку:
 ```
 /raid0/nfs 172.16.200.0/28(no_root_squash,subtree_check,rw)
 ```
-
+Опубликуем наш сетевой диск
 ```
 exportfs -ra
 ```
@@ -789,24 +855,24 @@ exportfs -ra
 mkdir /mnt/nfs
 vim /etc/fstab
 ```
-
-
-Между элементами - табы
+Добавим строку, между элементами - табы
 ```
 hq-srv:/raid0/nfs	/mnt/nfs	nfs	defaults	0	0
 ```
-Для проверки - от root
+Смонтируем и проверим что nfs подключена, так же проверим что мы можем в неё писать
 ```
 mount -a
-mount | grep nfs
+mount | grep hq-srv
 touch /mnt/nfs/icanwrite
 ```
 
-Вывод команды: раздел должен быть в выдаче grep как примонтированный и должна быть возможность записи на него
+Вывод команды grep должен показать следующее
+```
+hq-srv:/raid0/nfs on /mnt/nfs type nfs4 (rw,relatime,vers=4.2,rsize=262144,wsize=262144,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,clientaddr=172.16.200.4,local_lock=none,addr=172.16.100.2)
+```
 ## 3. Настройте службу сетевого времени на базе сервиса chrony
 На **HQ-RTR**
 ```
-apt-get install chrony -y
 vim /etc/chrony.conf
 ```
 
@@ -817,14 +883,13 @@ server 127.0.0.1 iburst
 allow 0.0.0.0/0
 local stratum 5
 ```
-
+Перезапустим chronyd
 ```
 systemctl restart chronyd
 ```
 
 На **HQ-SRV, HQ-CLI, BR-RTR, BR-SRV**
 ```
-apt-get install chrony -y
 vim /etc/chrony.conf
 ```
 В случае, если в файле есть данные строчки - их надо закомментировать
@@ -837,40 +902,42 @@ pool AU-TEAM.IRPO iburst
 ```
 server 172.16.99.1 iburst
 ```
-
+Применим настройки
 ```
 systemctl restart chronyd
 chronyc makestep
 chronyc sources
 ```
-
-Stratum должен быть 5, и статус нашего NTP сервера - 200
+Должны быть выдана следующая строка
+```
+MS Name/IP address         Stratum Poll Reach LastRx Last sample               
+===============================================================================
+^* hq-rtr.au-team.irpo           5   6    17     1    -32us[  -49us] +/-  141us
+```
+Stratum должен быть 5, и MS - ^*
 ## 4. Сконфигурируйте ansible на сервере BR-SRV
-Преднастройка машин от root:
-На **HQ-RTR, BR-RTR, CLI-HQ**
+Преднастройка машин (от root):
+На **HQ-RTR, BR-RTR, HQ-CLI**
 ```
 systemctl enable --now sshd
-```
-
-На **HQ-SRV**
-```
-apt-get install -y python3
 ```
 
 Настройка Ansible на **BR-SRV**
 ```
 apt-get install -y ansible
 cd /etc/ansible
-```
-```
 vim ansible.cfg
 ```
-В файле ansible.cfg раскоментируем строку `host_key_checking = False`
-Отредактируем файл hosts:
+В файле ansible.cfg раскоментируем строку
+```
+host_key_checking = False
+```
+Отредактируем и создадим файл hosts:
 ```
 vim hosts
 ```
-Файл должен иметь следующее содержание:
+Он должен иметь следующее содержание:
+Примечание - для HQ-CLI так же можно указать его адрес если он вдруг изменился и доменное имя перестало работать
 ```
 [servers]
 HQ-SRV ansible_host=hq-srv
@@ -896,6 +963,7 @@ ansible_ssh_pass=resu
 
 [routers:vars]
 ansible_ssh_user=net_admin
+ansible_ssh_pass=P@$$word
 ```
 
 Проверка:
@@ -907,6 +975,7 @@ ansible -m ping all
 
 ![](images/DemExamGuide_20250331212012678.png)
 ## 5. Развертывание приложений в Docker на сервере BR-SRV.
+Установим докер, произведём небольшую преднастройку
 ```
 apt-get install -y docker-engine docker-compose
 ln /usr/lib/docker/cli-plugins/docker-compose /bin/
@@ -948,7 +1017,6 @@ volumes:
 Поднимем контейнеры и настроим способ аутентификации для пользователя wiki:
 ```
 docker-compose -f wiki.yml up -d
-systemctl enable --now sshd
 ```
 
 На **HQ-CLI**
@@ -1004,7 +1072,7 @@ docker-compose -f wiki.yml up -d
 docker-compose -f wiki.yml down -v
 ```
 
-## 6. На маршрутизаторах сконфигурируйте статическую трансляцию портов
+## 6. [2] На маршрутизаторах сконфигурируйте статическую трансляцию портов
 На **BR-RTR**
 ```
 iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 2024 -j DNAT --to-destination 172.16.0.2:2024
@@ -1013,7 +1081,7 @@ iptables-save -f /etc/sysconfig/iptables
 ```
 
 Проверяем работу Wiki с HQ-CLI
-В браузере открываем 172.16.5.2:80
+В браузере открываем 172.16.5.2:80 и у нас должна открыться заглавная страница
 
 Проверяем работу ssh с HQ-RTR
 ```
@@ -1030,9 +1098,11 @@ iptables-save -f /etc/sysconfig/iptables
 Проверяем с BR-RTR
 ```
 ssh sshuser@172.16.4.2 -p 2024
+curl 172.16.4.2:80
 ```
+Вывод команды curl должен содержать html разметку, и не должно быть ошибок соединения
 
-## 7. Запустите сервис moodle на сервере HQ-SRV
+## 7. [1] Запустите сервис moodle на сервере HQ-SRV
 ```
 apt-get install -y moodle-local-mysql moodle moodle-apache2 mariadb-server
 systemctl enable --now httpd2.service mysqld.service
@@ -1054,7 +1124,7 @@ max_input_vars = 5000
 systemctl restart httpd2.service
 ```
 
-На **CLI-HQ**
+На **HQ-CLI**
 В браузере откроем http://172.16.100.2/moodle
 ![](images/DemExamGuide_20250402222028021.png)
 ![](images/DemExamGuide_20250402222100250.png)
@@ -1114,7 +1184,9 @@ ln /etc/nginx/sites-available.d/proxy.conf /etc/nginx/sites-enabled.d/
 systemctl enable --now nginx.service
 ```
 На **HQ-SRV**
-
+```
+vim /var/www/webapps/moodle/config.php
+```
 Изменим конфигурацию config.php 
 ```
 $CFG->wwwroot   = 'http://moodle.au-team.irpo/moodle';
@@ -1128,21 +1200,20 @@ $CFG->reverseproxy  =  true;
 systemctl restart httpd2
 ```
 
-Проверяем с HQ-CLI
+Проверяем с **HQ-CLI**
 
-В браузере открываем страницы
-
+В браузере открываем страницы, вводим те же адреса что и здесь, это важно
 ```
-http://moodle.au-team.irpo/moodle
+http://moodle.au-team.irpo/moodle/
 http://wiki.au-team.irpo
 ```
-## 9. Удобным способом установите приложение Яндекс Браузере для организаций на HQ-CLI
+## 9. Удобным способом установите приложение Яндекс Браузер для организаций на HQ-CLI
 Из-под root
 ```
 apt-get install -y yandex-browser-stable
 ```
 
-# Модуль 3
+# Модуль 3 - в процессе тестирования
 ## 1. Выполните миграцию на новый контроллер домена BR-SRV с BR-DC, являющийся наследием
 ### !!!Доделать!!!
 
@@ -1466,12 +1537,12 @@ iptables -I FORWARD -i eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 iptables -I FORWARD -i eth0 -p tcp --dport 2024 -j ACCEPT
 # Разрешаем доступ к роутеру из интернета по ssh
 iptables -I INPUT -i eth0 -p tcp --dport 22 -j ACCEPT
-iptables-save > /etc/sysconfig/iptables
+iptables-save -f /etc/sysconfig/iptables
 ```
 Отдельно на **BR-RTR**
 ```
 iptables -I FORWARD -i eth0 -p tcp --dport 8080 -j ACCEPT
-iptables-save > /etc/sysconfig/iptables
+iptables-save -f /etc/sysconfig/iptables
 ```
 Проверка с **HQ-RTR,BR-RTR**
 
@@ -1756,7 +1827,7 @@ ServerActive=hq-srv
 ```
 systemctl enable --now zabbix_agentd.service
 ```
-На **CLI-HQ**
+На **HQ-CLI**
 Добавим устройства в мониторинг, возможно придется уменьшить масштаб страницы чтобы увидеть кнопку добавления хоста, по аналогии с этим добавляем все устройства
 ![](images/DemExamGuide_20250409111424505.png)
 Нажмем кнопку Add в пункте Interfaces и выберете Agent чтобы присвоить IP адрес машины
