@@ -1310,13 +1310,12 @@ mkdir demoCA/private
 touch demoCA/index.txt
 echo 00 > demoCA/crlnumber
 ```
-Такая структура у нас получится
-Проверим
+Проверим структуру файлов если нужно 
 ```
 apt-get install tree -y
 tree demoCA
 ```
-Выведет следующую структуру
+Должно вывести следующее
 ```
 demoCA/
 ├── certs
@@ -1332,125 +1331,89 @@ openssl genpkey -algorithm gost2012_256 -pkeyopt paramset:TCB -out ./demoCA/priv
 openssl req -nodes -new -x509 -key ./demoCA/private/cakey.pem -out ./demoCA/cacert.pem -subj "/CN=AU-Team-CA"
 openssl genpkey -algorithm gost2012_256 -pkeyopt paramset:A -out ./demoCA/private/web.pem
 openssl req -new -key ./demoCA/private/web.pem -out ./demoCA/certs/web.cer -subj "/CN=*.au-team.irpo"
-openssl x509 -req -in ./demoCA/certs/web.cer -CA ./demoCA/cacert.pem -CAkey ./demoCA/private/cakey.pem -CAcreateserial -out web.cer
-openssl ca -gencrl -out ./demoCA/crl/ca.crll dgst:gost
+openssl x509 -req -in ./demoCA/certs/web.cer -CA ./demoCA/cacert.pem -CAkey ./demoCA/private/cakey.pem -CAcreateserial -out ./demoCA/newcerts/web.cer
+openssl ca -gencrl -out ./demoCA/crl/ca.crl dgst:gost
 ```
 Пересылаем необходимые файлы на машины
 Примечание: у **hq-cli** IP адрес может поменяться и по доменному имени уже нельзя будет достучаться до него, тогда следует вбить его текущий адрес
 ```
 scp ./demoCA/crl/ca.crl ./demoCA/cacert.pem  user@hq-cli:/home/user
-scp ./demoCA/private/web.pem demoCA/certs/web.cer  net_admin@hq-rtr:/home/net_admin
 ```
-
-УСТАРЕВШЕЕ после этой строки
-```
-openssl genpkey -algorithm gost2012_256 -pkeyopt paramset:TCB -out ca.key
-openssl req -new -x509 -md_gost12_256 -days 365 -key ca.key -out ca.cer -subj "/CN=AU-Team-CA"
-openssl genpkey -algorithm gost2012_256 -pkeyopt paramset:A -out web.key
-openssl req -new  -md_gost12_256 -key web.key -out web.csr -subj "/CN=*.au-team.irpo"
-openssl x509 -req -in web.csr -CA ca.cer -CAkey ca.key -CAcreateserial -out web.cer -days 365
-```
-
-Настроим следующие строки в файле
-```
-[ ca ]
-default_ca      = CA_default            # The default ca section
-
-####################################################################
-[ CA_default ]
-
-dir             = ./            # Where everything is kept
-certs           = $dir          # Where the issued certs are kept
-crl_dir         = $dir          # Where the issued crl are kept
-database        = $dir/index.txt        # database index file.
-#unique_subject = no                    # Set to 'no' to allow creation of
-                                        # several ctificates with same subject.
-new_certs_dir   = $dir          # default place for new certs.
-
-certificate     = $dir/ca.cer   # The CA certificate
-serial          = $dir/serial           # The current serial number
-crlnumber       = $dir/crlnumber        # the current crl number
-                                        # must be commented out to leave a V1 CRL
-crl             = $dir/crl.pem          # The current CRL
-private_key     = $dir/ca.key   # The private key
-
-x509_extensions = usr_cert              # The extentions to add to the cert
-
-# Comment out the following two lines for the "traditional"
-# (and highly broken) format.
-name_opt        = ca_default            # Subject Name options
-cert_opt        = ca_default            # Certificate field options
-
-# Extension copying option: use with caution.
-# copy_extensions = copy
-
-# Extensions to add to a CRL. Note: Netscape communicator chokes on V2 CRLs
-# so this is commented out by default to leave a V1 CRL.
-# crlnumber must also be commented out to leave a V1 CRL.
-# crl_extensions        = crl_ext
-
-default_days    = 365                   # how long to certify for
-default_crl_days= 30                    # how long before next CRL
-default_md      = md_gost12_256                 # which md to use.
-preserve        = no                    # keep passed DN ordering
-```
-Создадим CRL
-```
-openssl ca -gencrl -out ca.crl dgst:gost
-```
-Перешлём нужные файлы на машины
-```
-scp ca.crl ca.cer user@hq-cli:/home/user
-scp web.* net_admin@hq-rtr:/home/net_admin
-```
-На **ISP**
+На **ISP** настроим ssh и создадим директорию чтобы перекинуть файл
 ```
 mkdir /etc/ssl/certs -p
-mv /home/net_admin/web.* /etc/ssl/certs/
-vim /etc/nginx/sites-available.d/default.conf
+vim /etc/openssh/sshd_config
 ```
-Настраиваем так
+Добавим параметр
+```
+PermitRootLogin yes
+```
+Перезагрузим sshd
+```
+systemctl restart sshd
+```
+На **HQ-SRV**
+```
+scp ./demoCA/private/web.pem ./demoCA/newcerts/web.cer root@172.16.4.1:/etc/ssl/certs
+```
+Снова на **ISP**, настроим nginx на использование сертификата по ГОСТу
+```
+apt-get install -y openssl openssl-gost-engine
+control openssl-gost enabled
+vim /etc/nginx/sites-available.d/proxy.conf
+```
+Перенастроим nginx следующим образом:
 ```
 server {
-        listen  443 ssl;
-        server_name moodle.au-team.irpo;
-        ssl_certificate /etc/ssl/certs/web.cer;
-        ssl_certificate_key /etc/ssl/certs/web.key;
-        ssl_ciphers GOST2012-GOST8912-GOST8912:HIGH:MEDIUM;
-        ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-        ssl_prefer_server_ciphers on;
-        location /moodle {
-                proxy_pass http://hq-srv.au-team.irpo/moodle;
-        }
-        location / {
-                proxy_pass http://br-srv.au-team.irpo:8080/;
-        }
+ listen 443 ssl;
+ server_name moodle.au-team.irpo;
+ ssl_certificate /etc/ssl/certs/web.cer;
+ ssl_certificate_key /etc/ssl/certs/web.pem;
+ ssl_ciphers GOST2012-GOST8912-GOST8912:HIGH:MEDIUM;
+ ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+ ssl_prefer_server_ciphers on;
+ location / {
+  proxy_pass http://172.16.4.2:80;
+ }
+}
+server {
+ listen 443 ssl;
+ server_name wiki.au-team.irpo;
+ ssl_certificate /etc/ssl/certs/web.cer;
+ ssl_certificate_key /etc/ssl/certs/web.pem;
+ ssl_ciphers GOST2012-GOST8912-GOST8912:HIGH:MEDIUM;
+ ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+ ssl_prefer_server_ciphers on;
+ location / {
+  proxy_pass http://172.16.5.2:80;
+ }
 }
 ```
-
 Перезагрузим nginx
-
 ```
 systemctl restart nginx
 ```
 
 На **HQ-CLI**
 ```
-mv /home/user/ca.cer /etc/pki/ca-trust/source/anchors/
+mv /home/user/cacert.pem /etc/pki/ca-trust/source/anchors/
 update-ca-trust
-trust list | grep Team #Проверим что система доверяет нашему CA
-apt-get install cryptopro-preinstall
+trust list | grep AU 
+```
+Проверим что система доверяет нашему CA, должно вывести `label: AU-Team-CA`
+```
+apt-get install -y cryptopro-preinstall
 tar -xf linux-amd64.tgz #Архив качаем с сайта КриптоПро после регистрации, нам нужен "Актуальный" для Linux RPM x64
 cd linux-amd64
 apt-get install cprocsp-curl* lsb-cprocsp-base* lsb-cprocsp-capilite* lsb-cprocsp-kc1-64* lsb-cprocsp-rdr-64*
 ./install.sh
 ln /opt/cprocsp/bin/amd64/* /bin
-certmgr -install -store -mRoot -file /etc/pki/ca-trust/source/anchors/ca.cer #Вводим "o"
+certmgr -install -store mRoot -file /etc/pki/ca-trust/source/anchors/cacert.pem #Вводим "o"
 certmgr -install -store mRoot -crl -file /home/user/ca.crl
 ```
-Включим поддержку шифрования по ГОСТу в яндексе, для этого нажать "Три полоски" (сверху правее)> Настройки > Системные > Подключаться к сайтам использующим шифрование ГОСТ
+Включим поддержку шифрования по ГОСТу в яндексе, для этого нажать "Три горизонтальные полоски" (самые верхние правее)> Настройки > Системные > Подключаться к сайтам использующим шифрование ГОСТ
 
-Проверить открыв в яндекс браузере https://wiki.au-team.irpo, если нет предупреждений то всё сработало
+Проверить открыв в яндекс браузере https://wiki.au-team.irpo, если нет предупреждений (кроме того что сайт использует шифрование ГОСТ) то всё сработало.
 
 ## 3 Перенастройте ip-туннель с базового до уровня туннеля, обеспечивающего шифрование трафика
 На **HQ-RTR, BR-RTR**
