@@ -735,10 +735,12 @@ vim import.sh
 Содержание import.sh
 ```
 #!/bin/bash
-tail -n +2 /opt/users.csv | while IFS=';' read -r firstName lastName _ _ _ _ _ _ _ password
+tail -n +2 /opt/users.csv | while IFS=';' read -r firstName lastName _ _ ou _ _ _ _ password
 do
-    username="${firstName}${lastName}"
-    samba-tool user create "$username" "$password"
+   username="${firstName}${lastName}"
+    samba-tool ou create "OU=$ou"
+    samba-tool user create "$username" "$password" \
+        --userou="OU=$ou"
 done
 ```
 
