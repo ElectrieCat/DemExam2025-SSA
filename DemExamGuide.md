@@ -993,7 +993,6 @@ vim wiki.yml
 
 Запишем в файл следующее:
 ```
-version: '3'
 services:
   wiki:
     image: mediawiki
@@ -1665,8 +1664,6 @@ vim zabbix.yml
 ```
 Настроим следующий конфиг
 ```
-version: "3.9"
-
 services:
  
   zabbix-mariadb:
