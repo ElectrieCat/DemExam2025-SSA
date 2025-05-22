@@ -2134,3 +2134,21 @@ tree /etc/ansible/NETWORK_INFO
     │       └── options
     └── iptables
 ```
+## Вариатив 2: Метрики с сервера мониторинга необходимо экспортировать в Grafana
+### Некоторые наброски
+```
+apt-get install -y grafana
+systemctl enable --now grafana-server
+grafana-cli plugins install alexanderzobnin-zabbix-app
+systemctl restart grafana-server
+```
+Заходим с графики на IP:3000
+Вводим admin/admin, skip
+Переходим в Home>Administration>Plugins and data> Plugins>Zabbix - жмём enable
+Идём в Connection>Data sources>add data source/ Ищем zabbix и тыкаем его
+Вводим там ссылку на апи http://172.16.100.2:8080/api_jsonrpc.php
+Тут кажется можно задать пользователя и пароль которые нужно будет ввести для просмотра данных в будущем
+В разделе Zabbix connection должно стоять user and password
+Ставим Admin/P@ssw0wrd
+Листаем вниз и тыкаем Save&test - должно показать версию нашего апи заббикса
+На этом пока всё, ожидает дальнейшего редактирования и настройки
