@@ -1356,7 +1356,7 @@ server {
  ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
  ssl_prefer_server_ciphers on;
  location / {
-  proxy_pass http://172.16.4.2:80;
+  proxy_pass http://172.16.4.2:80/moodle/;
  }
 }
 server {
@@ -1396,7 +1396,7 @@ certmgr -install -store mRoot -crl -file /home/user/ca.crl
 ```
 Включим поддержку шифрования по ГОСТу в яндексе, для этого нажать "Три горизонтальные полоски" (самые верхние правее)> Настройки > Системные > Подключаться к сайтам использующим шифрование ГОСТ
 
-Проверить открыв в яндекс браузере https://wiki.au-team.irpo, если нет предупреждений (кроме того что сайт использует шифрование ГОСТ) то всё сработало.
+Проверить открыв в яндекс браузере https://wiki.au-team.irpo и https://moodle.au-team.irpo, если нет предупреждений (кроме того что сайт использует шифрование ГОСТ) то всё сработало.
 
 ## 3 Перенастройте ip-туннель с базового до уровня туннеля, обеспечивающего шифрование трафика
 На **HQ-RTR, BR-RTR**
@@ -1407,7 +1407,7 @@ apt-get install -y strongswan
 ```
 vim /etc/strongswan/ipsec.conf
 ```
-
+Добавим следующий блок конфига
 ```
 conn tungre
         left=172.16.4.2
@@ -1422,7 +1422,7 @@ conn tungre
         auto=start
         type=tunnel
 ```
-
+Откроем файл с настройками аутентификации
 ```
 vim /etc/strongswan/ipsec.secrets
 ```
@@ -1435,7 +1435,7 @@ vim /etc/strongswan/ipsec.secrets
 ```
 vim /etc/strongswan/ipsec.conf
 ```
-
+Добавим следующий блок конфига
 ```
 conn tungre
         left=172.16.5.2
@@ -1450,7 +1450,7 @@ conn tungre
         auto=start
         type=tunnel
 ```
-
+Откроем файл с настройками аутентификации
 ```
 vim /etc/strongswan/ipsec.secrets
 ```
@@ -1461,17 +1461,25 @@ vim /etc/strongswan/ipsec.secrets
 На **HQ-RTR, BR-RTR**
 ```
 systemctl enable --now ipsec.service
-ipsec status # Должно появиться ESTABLISHED соединение
-ip xfrm state # Появится правило для протокола gre и src,dst адресов тоннеля
+ipsec status
 ```
+У соединения должен быть статус ESTABLISHED
+```
+ip xfrm state
+```
+Появится правило для протокола gre и src,dst адресов тоннеля
+
 ## 4. Настройте межсетевой экран на маршрутизаторах HQ-RTR и BR-RTR на сеть в сторону ISP
+### Пересмотреть
 
 На **HQ-RTR, BR-RTR**
+Запрещаем все подключения во внутреннюю сеть из интернета
 ```
-# Запрещаем все подключения во внутреннюю сеть из интернета
 iptables -A INPUT -i eth0 -j REJECT
 iptables -A FORWARD -i eth0 -j REJECT
-# Обеспечиваем работу протоколов
+```
+Обеспечиваем работу протоколов
+```
 iptables -I FORWARD -i eth0 -p tcp --dport 80 -j ACCEPT
 iptables -I INPUT -i eth0 -p tcp --dport 443 -j ACCEPT
 iptables -I FORWARD -i eth0 -p tcp --dport 443 -j ACCEPT
@@ -1481,9 +1489,13 @@ iptables -I INPUT -i eth0 -p icmp -j ACCEPT
 iptables -I FORWARD -i eth0 -p icmp -j ACCEPT
 iptables -I INPUT -i eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 iptables -I FORWARD -i eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-# Чтобы работала ранее настроенная переадресация
+```
+Чтобы работала ранее настроенная переадресация
+```
 iptables -I FORWARD -i eth0 -p tcp --dport 2024 -j ACCEPT
-# Разрешаем доступ к роутеру из интернета по ssh
+```
+Разрешаем доступ к роутеру из интернета по ssh
+```
 iptables -I INPUT -i eth0 -p tcp --dport 22 -j ACCEPT
 iptables-save -f /etc/sysconfig/iptables
 ```
@@ -1517,6 +1529,7 @@ ipsec status
 ## 5. Настройте принт-сервер cups на сервере HQ-SRV.
 ```
 apt-get install -y cups cups-pdf
+systemctl enable --now cups
 cupsctl --remote-admin --remote-any --share-printers
 ```
 
@@ -1530,6 +1543,7 @@ echo "Test print job" | lp -d Cups-PDF
 
 В браузере откроем
 https://hq-srv.au-team.irpo:631/jobs
+Игнорируем ошибку сертификата и открываем страницу
 ![](images/DemExamGuide_20250407180506222.png)
 Если задание появилось, то всё настроено правильно.
 ## 6. Реализуйте логирование при помощи rsyslog на устройствах HQ-RTR, BR-RTR, BR-SRV
@@ -1537,24 +1551,24 @@ https://hq-srv.au-team.irpo:631/jobs
 На **HQ-SRV**
 ```
 apt-get install -y rsyslog-classic
-vim /etc/rsyslog.d/00_common.conf
 rm -f /etc/rsyslog.d/10_classic.conf
-```
-
+vim /etc/rsyslog.d/00_common.conf
 ```
 Раскомментировать строки
+```
 module(load="imudp") # needs to be done just once
 input(type="imudp" port="514")
 
 module(load="imtcp") # needs to be done just once
 input(type="imtcp" port="514")
-
+```
 Добавить в конец файла
+```
 $template RemoteLogs, "/opt/%HOSTNAME%/%HOSTNAME%.log"
 *.* ?RemoteLogs
 & ~
 ```
-
+Запустим службу и добавим в автозагрузку
 ```
 systemctl enable --now rsyslog
 ```
@@ -1565,26 +1579,28 @@ systemctl enable --now rsyslog
 apt-get install -y rsyslog-classic
 vim /etc/rsyslog.d/00_common.conf
 ```
-
-```
 Раскомментировать
+```
 module(load="imjournal") # provides support for systemd-journald logging
 module(load="imuxsock")  # provides support for local system logging (e.g. via logger command)
 module(load="imklog")    # provides kernel logging support (previously done by rklogd)
 module(load="immark")    # provides --MARK-- message capability
-
+```
 Добавить в конец файла
+```
 *.warning @@hq-srv:514
 ```
+Запустим службу и добавим в автозагрузку
 ```
 systemctl enable --now rsyslog
 ```
 
 На **HQ-SRV**
-Проверим что логи присылаются `ls /opt`
-
+Проверим что логи присылаются 
+```
+ls /opt
+```
 Настроим ротацию
-
 ```
 vim /etc/logrotate.d/rsyslog
 ```
@@ -1607,9 +1623,10 @@ vim /etc/logrotate.d/rsyslog
 Выполним
 ```
 EDITOR=vim crontab -e
-Введите:
+```
+Добавим строку:
+```
 0 0 * * 0 /usr/sbin/logrotate -f /etc/logrotate.d/rsyslog
-Выйти из vim :wq
 ```
 
 Проверим работу:
@@ -1620,12 +1637,13 @@ logrotate -d /etc/logrotate.d/rsyslog
 Должно быть выведено, что слишком рано для ротации т.к. логи не достигли нужного размера файла
 
 ## 7. На сервере HQ-SRV реализуйте мониторинг устройств с помощью открытого программного обеспечения.
+### Пересмотреть относительно задания 4
 ```
 apt-get install -y docker-engine docker-compose
 systemctl enable --now docker
 vim zabbix.yml
 ```
-
+Настроим следующий конфиг
 ```
 version: "3.9"
 
@@ -1658,7 +1676,7 @@ services:
       DB_SERVER_HOST: zabbix-mariadb
       MYSQL_USER: zabbix
       MYSQL_PASSWORD: zabbixpass
-      ZBX_ALLOWUNSUPPORTEDDBVERSIONS=1
+      ZBX_ALLOWUNSUPPORTEDDBVERSIONS: 1
     networks:
       default:
         ipv4_address: 172.28.0.254
@@ -1693,42 +1711,42 @@ networks:
       config:
         - subnet: 172.28.0.0/16
 ```
-
+Поднимем службу
 ```
 docker compose -f zabbix.yml up -d
 ```
-
+Откроем конфиг прямой зоны в bind
 ```
 vim /etc/bind/zone/au-team.irpo
 ```
 Добавим строку в список записей (через табы)
 ```
-mon	IN	CNAME	hq-rtr.au-team.irpo.
+mon	IN	A	172.16.4.1
 ```
 Пеперазпустим DNS сервер
 ```
 systemctl restart bind
 ```
-На **HQ-RTR**
+На **ISP**
 ```
-vim /etc/nginx/sites-available.d/default.conf
+vim /etc/nginx/sites-available.d/proxy.conf
 ```
 Добавим следующий блок в конец файла
 ```
 server {
-        listen  443 ssl;
-        server_name mon.au-team.irpo;
-        ssl_certificate /etc/ssl/certs/web.cer;
-        ssl_certificate_key /etc/ssl/certs/web.key;
-        ssl_ciphers GOST2012-GOST8912-GOST8912:HIGH:MEDIUM;
-        ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-        ssl_prefer_server_ciphers on;
-        location / {
-                proxy_pass http://hq-srv.au-team.irpo:8080/;
-        }
+ listen  443 ssl;
+ server_name mon.au-team.irpo;
+ ssl_certificate /etc/ssl/certs/web.cer;
+ ssl_certificate_key /etc/ssl/certs/web.pem;
+ ssl_ciphers GOST2012-GOST8912-GOST8912:HIGH:MEDIUM;
+ ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+ ssl_prefer_server_ciphers on;
+ location / {
+  proxy_pass http://172.16.4.2:8080;
+ }
 }
 ```
-
+Откроем конфиг nginx
 ```
 vim /etc/nginx/nginx.conf
 ```
@@ -1740,7 +1758,14 @@ server_names_hash_bucket_size 64;
 ```
 systemctl restart nginx
 ```
-
+На **HQ-RTR**
+Настроим переадресацию из внешней сети на порт 8080 на HQ-SRV во внутренней сети
+```
+iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 8080 -j DNAT --to-destination 172.16.100.2:8080
+iptables -I FORWARD -i eth0 -p tcp --dport 8080 -j ACCEPT
+iptables -I INPUT -i eth0 -p tcp --dport 8080 -j ACCEPT
+iptables-save -f /etc/sysconfig/iptables
+```
 На **HQ-CLI**
 Откроем в браузере https://mon.au-team.irpo
 Данные для входа после установки: 
@@ -1806,22 +1831,22 @@ vim /etc/ansible/PC_INFO/playbook.yml
       create: true
     delegate_to: 127.0.0.1
 ```
-
+Запустим файл плейбука
 ```
 ansible-playbook /etc/ansible/PC_INFO/playbook.yml
 ```
 
-Если всё успешно, в папке PC_INFO появятся два файла с отчетом о машинах
+Если всё успешно, в папке PC_INFO появятся два файла с отчетом о машинах: `hq-cli.yml, hq-srv.yml`
 
 Дополнительно если что-то не так, для отладки синтаксиса плейбука можно установить пакет и использовать утилиту ansible-lint
 
 ## 9. Реализуйте механизм резервного копирования конфигурации для машин HQ-RTR и BR-RTR, через Ansible на BR-SRV
-
+Создадим папку и откроем конфигурацию нового плейбука
 ```
 mkdir /etc/ansible/NETWORK_INFO
 vim /etc/ansible/net.yml
 ```
-Вставим конфиг
+Настроим плейбук
 ```
 - name: Backup configs
   hosts: HQ-RTR, BR-RTR
@@ -1862,10 +1887,10 @@ vim /etc/ansible/net.yml
       file:
         path: /etc/ansible/NETWORK_INFO/{{ inventory_hostname }}
         state: directory
-
 ```
 
 На **BR-RTR, HQ-RTR**
+Выставим у файлов нужные права
 ```
 chmod -R 777 /etc/frr
 chmod o+r /etc/sysconfig /etc/sysconfig/iptables 
@@ -1873,13 +1898,215 @@ chmod -R o+r /etc/net/ifaces/
 ```
 
 На **HQ-RTR**
+Выставим у файла нужные права
 ```
 chmod -R 777 /etc/dhcp
 ```
 
 На **BR-SRV**
 ```
-ansible-playbook /etc/ansible/net/yml
+ansible-playbook /etc/ansible/net.yml
 ```
 
-Для проверки смотрим папку /etc/ansible/NETWORK_INFO
+Для проверки смотрим папку 
+```
+apt-get install -y tree
+tree /etc/ansible/NETWORK_INFO
+```
+Должна появиться следующая структура файлов
+```
+/etc/ansible/NETWORK_INFO
+├── BR-RTR
+│   ├── frr.conf
+│   ├── ifaces
+│   │   ├── default
+│   │   │   ├── fw
+│   │   │   │   ├── ebtables
+│   │   │   │   │   ├── broute
+│   │   │   │   │   │   └── BROUTING
+│   │   │   │   │   ├── filter
+│   │   │   │   │   │   ├── FORWARD
+│   │   │   │   │   │   ├── INPUT
+│   │   │   │   │   │   ├── OUTPUT
+│   │   │   │   │   │   └── loadorder
+│   │   │   │   │   ├── loadorder
+│   │   │   │   │   ├── modules
+│   │   │   │   │   └── nat
+│   │   │   │   │       ├── OUTPUT
+│   │   │   │   │       ├── POSTROUTING
+│   │   │   │   │       ├── PREROUTING
+│   │   │   │   │       └── loadorder
+│   │   │   │   ├── ip6tables
+│   │   │   │   │   ├── filter
+│   │   │   │   │   │   ├── FORWARD
+│   │   │   │   │   │   ├── INPUT
+│   │   │   │   │   │   ├── OUTPUT
+│   │   │   │   │   │   └── loadorder
+│   │   │   │   │   ├── loadorder
+│   │   │   │   │   ├── mangle
+│   │   │   │   │   │   ├── FORWARD
+│   │   │   │   │   │   ├── INPUT
+│   │   │   │   │   │   ├── OUTPUT
+│   │   │   │   │   │   ├── POSTROUTING
+│   │   │   │   │   │   ├── PREROUTING
+│   │   │   │   │   │   └── loadorder
+│   │   │   │   │   ├── modules
+│   │   │   │   │   └── syntax
+│   │   │   │   ├── ipset
+│   │   │   │   │   ├── iphash
+│   │   │   │   │   ├── ipmap
+│   │   │   │   │   ├── ipporthash
+│   │   │   │   │   ├── ipportiphash
+│   │   │   │   │   ├── ipportnethash
+│   │   │   │   │   ├── iptree
+│   │   │   │   │   ├── iptreemap
+│   │   │   │   │   ├── loadorder
+│   │   │   │   │   ├── macipmap
+│   │   │   │   │   ├── modules
+│   │   │   │   │   ├── nethash
+│   │   │   │   │   ├── portmap
+│   │   │   │   │   └── setlist
+│   │   │   │   ├── iptables
+│   │   │   │   │   ├── filter
+│   │   │   │   │   │   ├── FORWARD
+│   │   │   │   │   │   ├── INPUT
+│   │   │   │   │   │   ├── OUTPUT
+│   │   │   │   │   │   └── loadorder
+│   │   │   │   │   ├── loadorder
+│   │   │   │   │   ├── mangle
+│   │   │   │   │   │   ├── FORWARD
+│   │   │   │   │   │   ├── INPUT
+│   │   │   │   │   │   ├── OUTPUT
+│   │   │   │   │   │   ├── POSTROUTING
+│   │   │   │   │   │   ├── PREROUTING
+│   │   │   │   │   │   └── loadorder
+│   │   │   │   │   ├── modules
+│   │   │   │   │   ├── nat
+│   │   │   │   │   │   ├── OUTPUT
+│   │   │   │   │   │   ├── POSTROUTING
+│   │   │   │   │   │   ├── PREROUTING
+│   │   │   │   │   │   └── loadorder
+│   │   │   │   │   └── syntax
+│   │   │   │   └── options
+│   │   │   ├── options
+│   │   │   ├── options-bnep
+│   │   │   ├── options-dummy
+│   │   │   ├── options-eth
+│   │   │   ├── options-l2tp
+│   │   │   ├── options-lo
+│   │   │   ├── options-ovpn
+│   │   │   ├── options-ppp
+│   │   │   ├── options-tuntap
+│   │   │   ├── options-usb
+│   │   │   ├── options-vlan
+│   │   │   └── sysctl.conf-dvb
+│   │   ├── eth0
+│   │   │   ├── ipv4address
+│   │   │   ├── ipv4route
+│   │   │   ├── options
+│   │   │   └── resolv.conf
+│   │   ├── lo
+│   │   │   ├── ipv4address
+│   │   │   └── options
+│   │   └── unknown
+│   │       ├── README
+│   │       └── options
+│   └── iptables
+└── HQ-RTR
+    ├── dhcpd.conf
+    ├── frr.conf
+    ├── ifaces
+    │   ├── default
+    │   │   ├── fw
+    │   │   │   ├── ebtables
+    │   │   │   │   ├── broute
+    │   │   │   │   │   └── BROUTING
+    │   │   │   │   ├── filter
+    │   │   │   │   │   ├── FORWARD
+    │   │   │   │   │   ├── INPUT
+    │   │   │   │   │   ├── OUTPUT
+    │   │   │   │   │   └── loadorder
+    │   │   │   │   ├── loadorder
+    │   │   │   │   ├── modules
+    │   │   │   │   └── nat
+    │   │   │   │       ├── OUTPUT
+    │   │   │   │       ├── POSTROUTING
+    │   │   │   │       ├── PREROUTING
+    │   │   │   │       └── loadorder
+    │   │   │   ├── ip6tables
+    │   │   │   │   ├── filter
+    │   │   │   │   │   ├── FORWARD
+    │   │   │   │   │   ├── INPUT
+    │   │   │   │   │   ├── OUTPUT
+    │   │   │   │   │   └── loadorder
+    │   │   │   │   ├── loadorder
+    │   │   │   │   ├── mangle
+    │   │   │   │   │   ├── FORWARD
+    │   │   │   │   │   ├── INPUT
+    │   │   │   │   │   ├── OUTPUT
+    │   │   │   │   │   ├── POSTROUTING
+    │   │   │   │   │   ├── PREROUTING
+    │   │   │   │   │   └── loadorder
+    │   │   │   │   ├── modules
+    │   │   │   │   └── syntax
+    │   │   │   ├── ipset
+    │   │   │   │   ├── iphash
+    │   │   │   │   ├── ipmap
+    │   │   │   │   ├── ipporthash
+    │   │   │   │   ├── ipportiphash
+    │   │   │   │   ├── ipportnethash
+    │   │   │   │   ├── iptree
+    │   │   │   │   ├── iptreemap
+    │   │   │   │   ├── loadorder
+    │   │   │   │   ├── macipmap
+    │   │   │   │   ├── modules
+    │   │   │   │   ├── nethash
+    │   │   │   │   ├── portmap
+    │   │   │   │   └── setlist
+    │   │   │   ├── iptables
+    │   │   │   │   ├── filter
+    │   │   │   │   │   ├── FORWARD
+    │   │   │   │   │   ├── INPUT
+    │   │   │   │   │   ├── OUTPUT
+    │   │   │   │   │   └── loadorder
+    │   │   │   │   ├── loadorder
+    │   │   │   │   ├── mangle
+    │   │   │   │   │   ├── FORWARD
+    │   │   │   │   │   ├── INPUT
+    │   │   │   │   │   ├── OUTPUT
+    │   │   │   │   │   ├── POSTROUTING
+    │   │   │   │   │   ├── PREROUTING
+    │   │   │   │   │   └── loadorder
+    │   │   │   │   ├── modules
+    │   │   │   │   ├── nat
+    │   │   │   │   │   ├── OUTPUT
+    │   │   │   │   │   ├── POSTROUTING
+    │   │   │   │   │   ├── PREROUTING
+    │   │   │   │   │   └── loadorder
+    │   │   │   │   └── syntax
+    │   │   │   └── options
+    │   │   ├── options
+    │   │   ├── options-bnep
+    │   │   ├── options-dummy
+    │   │   ├── options-eth
+    │   │   ├── options-l2tp
+    │   │   ├── options-lo
+    │   │   ├── options-ovpn
+    │   │   ├── options-ppp
+    │   │   ├── options-tuntap
+    │   │   ├── options-usb
+    │   │   ├── options-vlan
+    │   │   └── sysctl.conf-dvb
+    │   ├── eth0
+    │   │   ├── ipv4address
+    │   │   ├── ipv4route
+    │   │   ├── options
+    │   │   └── resolv.conf
+    │   ├── lo
+    │   │   ├── ipv4address
+    │   │   └── options
+    │   └── unknown
+    │       ├── README
+    │       └── options
+    └── iptables
+```
