@@ -1658,7 +1658,6 @@ logrotate -d /etc/logrotate.d/rsyslog
 Должно быть выведено, что слишком рано для ротации т.к. логи не достигли нужного размера файла
 
 ## 7. На сервере HQ-SRV реализуйте мониторинг устройств с помощью открытого программного обеспечения.
-### Пересмотреть относительно задания 4
 ```
 apt-get install -y docker-engine docker-compose
 systemctl enable --now docker
@@ -1804,7 +1803,7 @@ iptables-save -f /etc/sysconfig/iptables
 Новый пароль два раза: P@ssw0rd
 ```
 
-На **HQ-RTR, HQ-SRV, BR-RTR и BR-SRV**
+На **HQ-RTR, BR-RTR и BR-SRV**
 
 От root
 ```
@@ -1813,7 +1812,12 @@ vim /etc/zabbix/zabbix_agentd.conf
 ```
 Ищем строки и настраиваем
 ```
-Server=hq-srv #Для конфигурации на машине HQ-SRV в этой строке поставить "0.0.0.0/0"
+Server=hq-srv 
+ServerActive=hq-srv
+```
+При конфигурации на машине **HQ-SRV**
+```
+Server=0.0.0.0/0
 ServerActive=hq-srv
 ```
 Включаем агент
@@ -1827,7 +1831,7 @@ systemctl enable --now zabbix_agentd.service
 ![](images/DemExamGuide_20250409111220186.png)
 Как только мы добавим все машины аналогичным образом, можем смотреть для каждой графики её нагрузки пролистывая страницу вниз. 
 Примечание: возможно придется немного подождать или перезагрузить страницу чтобы они появились
-![](DemExamGuide_20250522214247234.png)
+![](images/DemExamGuide_20250522214247234.png)
 
 ## 8. Реализуйте механизм инвентаризации машин HQ-SRV и HQ-CLI через Ansible на BR-SRV:
 ```
