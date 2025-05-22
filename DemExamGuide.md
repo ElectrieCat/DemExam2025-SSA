@@ -1047,7 +1047,7 @@ docker compose -f wiki.yml up -d
 ![](images/DemExamGuide_20250402021137986.png)
 
 Теперь необходимо отправить этот файл на BR-SRV.
-Зайдем в консоль и перейдем под root:
+Зайдем в консоль:
 ```
 cd /home/user/Загрузки
 scp -P 2024 LocalSettings.php sshuser@br-srv:/home/sshuser/
@@ -1825,6 +1825,9 @@ systemctl enable --now zabbix_agentd.service
 ![](images/DemExamGuide_20250409111424505.png)
 Нажмем кнопку Add в пункте Interfaces и выберете Agent чтобы присвоить IP адрес машины
 ![](images/DemExamGuide_20250409111220186.png)
+Как только мы добавим все машины аналогичным образом, можем смотреть для каждой графики её нагрузки пролистывая страницу вниз. 
+Примечание: возможно придется немного подождать или перезагрузить страницу чтобы они появились
+![](DemExamGuide_20250522214247234.png)
 
 ## 8. Реализуйте механизм инвентаризации машин HQ-SRV и HQ-CLI через Ansible на BR-SRV:
 ```
