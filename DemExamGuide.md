@@ -1,6 +1,15 @@
 # Топология
 ![](images/DemExamGuide_20250515120408769.png)
 # Полезности
+Пароли по умолчанию для пользователей на машинах
+```
+root/toor
+user/resu
+```
+Если съехало отображение строк в окне терминала
+```
+setterm --resize
+```
 В процессе настройки нам понадобится скачивать пакеты, и временно до того как настроим собственный днс сервер будем использовать общедоступный, в этой методичке днс сервер колледжа:
 
 ```
@@ -12,11 +21,9 @@ echo 'nameserver 192.168.100.1' >> /etc/resolv.conf
 Если преднсатройка днс понадобится, то в параграфе будет об этом сказано
 
 Так-же везде следует сразу же выполнить
-
 ```
 apt-update
 ```
-
 при получении доступа в интернет и после прикручивания временного днс сервера, если этого не сделать иногда не удастся поставить пакеты
 
 Полезные команды Vim
@@ -744,11 +751,11 @@ vim import.sh
 Содержание import.sh
 ```
 #!/bin/bash
-tail -n +2 /opt/users.csv | while IFS=';' read -r firstName lastName _ _ ou _ _ _ _ password
+tail -n +2 /opt/users.csv | while IFS=';' read -r firstName lastName _ _ ou _ _  
+_ _ password
 do
-   username="${firstName}${lastName}"
     samba-tool ou create "OU=$ou"
-    samba-tool user create "$username" "$password" \
+    samba-tool user create "${firstName}${lastName}" "$password" \
         --userou="OU=$ou"
 done
 ```
@@ -757,12 +764,11 @@ done
 ```
 sh import.sh
 ```
-
+Частые ошибки при попытках добавления OU которые уже существуют это нормально.
 Пример успешного выполнения:
 ```
-User 'EmmanuelBlankenship' added successfully
-User 'RobertBlevins' added successfully
-User 'RheaBolton' added successfully
+Added ou "OU=Supporter,DC=au-team,DC=irpo"
+User 'KayesStokes' added successfully
 ```
 
 На **HQ-SRV**
@@ -980,7 +986,6 @@ ansible -m ping all
 Установим докер, произведём небольшую преднастройку
 ```
 apt-get install -y docker-engine docker-compose
-ln /usr/lib/docker/cli-plugins/docker-compose /bin/
 systemctl enable --now docker
 cd /root
 vim wiki.yml
@@ -1018,7 +1023,7 @@ volumes:
 
 Поднимем контейнеры и настроим способ аутентификации для пользователя wiki:
 ```
-docker-compose -f wiki.yml up -d
+docker compose -f wiki.yml up -d
 ```
 
 На **HQ-CLI**
@@ -1051,7 +1056,7 @@ scp -P 2024 LocalSettings.php sshuser@br-srv:/home/sshuser/
 На **BR-SRV**
 ```
 mv /home/sshuser/LocalSettings.php /root/
-docker-compose -f wiki.yml down
+docker compose -f wiki.yml down
 vim wiki.yml
 ```
 
@@ -1061,7 +1066,7 @@ vim wiki.yml
 ```
 Поднимем контейнер
 ```
-docker-compose -f wiki.yml up -d
+docker compose -f wiki.yml up -d
 ```
 
 На **HQ-CLI**
@@ -1071,7 +1076,7 @@ docker-compose -f wiki.yml up -d
 На **BR-SRV**
 Если вы что-то настроили не так и нужно сбросить контейнеры, используйте:
 ```
-docker-compose -f wiki.yml down -v
+docker compose -f wiki.yml down -v
 ```
 
 ## 6. [2] На маршрутизаторах сконфигурируйте статическую трансляцию портов
