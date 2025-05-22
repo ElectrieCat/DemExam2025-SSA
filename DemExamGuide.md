@@ -1474,8 +1474,9 @@ ip xfrm state
 ```
 Появится правило для протокола gre и src,dst адресов тоннеля
 
+**Удаление правил**
+Если добавили неправильное правило, просто выполните ту-же команду, но поменяйте **-I** или **-A** на **-D**, это по строгому соответствую удалит правило из цепочки
 ## 4. Настройте межсетевой экран на маршрутизаторах HQ-RTR и BR-RTR на сеть в сторону ISP
-### Пересмотреть
 
 На **HQ-RTR, BR-RTR**
 Запрещаем все подключения во внутреннюю сеть из интернета
@@ -1483,52 +1484,67 @@ ip xfrm state
 iptables -A INPUT -i eth0 -j REJECT
 iptables -A FORWARD -i eth0 -j REJECT
 ```
-Обеспечиваем работу протоколов
+Обеспечиваем работу протоколов во внутреннюю сеть и к самим роутерам
 ```
 iptables -I FORWARD -i eth0 -p tcp --dport 80 -j ACCEPT
-iptables -I INPUT -i eth0 -p tcp --dport 443 -j ACCEPT
 iptables -I FORWARD -i eth0 -p tcp --dport 443 -j ACCEPT
 iptables -I FORWARD -i eth0 -p udp --dport 53 -j ACCEPT
-iptables -I INPUT -i eth0 -p udp --dport 123 -j ACCEPT
-iptables -I INPUT -i eth0 -p icmp -j ACCEPT
+iptables -I FORWARD -i eth0 -p udp --dport 123 -j ACCEPT
 iptables -I FORWARD -i eth0 -p icmp -j ACCEPT
-iptables -I INPUT -i eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 iptables -I FORWARD -i eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-```
-Чтобы работала ранее настроенная переадресация
-```
 iptables -I FORWARD -i eth0 -p tcp --dport 2024 -j ACCEPT
+iptables -I INPUT -i eth0 -p icmp -j ACCEPT
+iptables -I INPUT -i eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 ```
-Разрешаем доступ к роутеру из интернета по ssh
+Разрешаем доступ к порту ssh на wan интерфейсе
 ```
 iptables -I INPUT -i eth0 -p tcp --dport 22 -j ACCEPT
-iptables-save -f /etc/sysconfig/iptables
 ```
-Отдельно на **BR-RTR**
+Отдельно на **HQ-RTR**
 ```
 iptables -I FORWARD -i eth0 -p tcp --dport 8080 -j ACCEPT
-iptables-save -f /etc/sysconfig/iptables
+iptables -I INPUT -i eth0 -p udp --dport 123 -j ACCEPT
 ```
-Проверка с **HQ-RTR,BR-RTR**
-
-Проверять нужно с роутера напротив и использовать внешние адреса, для проверки можно использовать nmap, ping или для наглядности wget, curl, nslookup:
+Проверка с **ISP**
+Настроим временные маршруты чтобы можно было достучаться до ресурсов сети за роутерами, так же установим необходимые пакеты с инструментами для проверки
 ```
 apt-get install -y nmap curl wget bind-utils
+ip route add 172.16.100.0/26 via 172.16.4.2 
+ip route add 172.16.0.0/27 via 172.16.5.2 
 ```
-Как пользоваться
+Для проверки можно использовать nmap, ping или для наглядности wget, curl, nslookup
+Как пользоваться:
 ```
 nmap IP -p PORT # Для TCP
 nmap IP -p PORT -sU # Для UDP
 wget IP:PORT
 curl IP:PORT
 curl http[s]://IP[:PORT]
-nslookup DOMAIN DNS_SRV_IP
+nslookup DOMAIN DNS_SERVER_IP
 ping IP
 ```
-Проверяем что после применения поднимется ipsec на роутерах
+Проверяем для сети в сторону HQ-RTR т.к. тут есть больше всего возможностей наглядной проверки, если сработали настройки для этой сети то аналогичные сработали и для сети в сторону BR-RTR
+```
+nmap 172.16.100.2
+curl 172.16.100.2 
+nmap 172.16.100.2 -p 53 -sU
+nmap 172.16.4.2 -p 123 -sU
+nmap 172.16.4.2 -p 2024
+nslookup hq-rtr.au-team.irpo 172.16.100.2
+ping 172.16.100.2
+ping 172.16.4.2
+```
+Проверяем что после применения нашего файрвола поднимется ipsec на **HQ-RTR**, **BR-RTR**
 ```
 ipsec restart
 ipsec status
+```
+Должен быть статус `ESTABLISHED`, возможно потребуется подождать около минуты.
+
+На **HQ-RTR**, **BR-RTR**
+Если всё проверено и работает, можем сохранить наши настройки
+```
+iptables-save -f /etc/sysconfig/iptables
 ```
 
 ## 5. Настройте принт-сервер cups на сервере HQ-SRV.
@@ -1766,9 +1782,8 @@ systemctl restart nginx
 На **HQ-RTR**
 Настроим переадресацию из внешней сети на порт 8080 на HQ-SRV во внутренней сети
 ```
-iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 8080 -j DNAT --to-destination 172.16.100.2:8080
+iptables -t nat -I PREROUTING -p tcp -i eth0 --dport 8080 -j DNAT --to-destination 172.16.100.2:8080
 iptables -I FORWARD -i eth0 -p tcp --dport 8080 -j ACCEPT
-iptables -I INPUT -i eth0 -p tcp --dport 8080 -j ACCEPT
 iptables-save -f /etc/sysconfig/iptables
 ```
 На **HQ-CLI**
