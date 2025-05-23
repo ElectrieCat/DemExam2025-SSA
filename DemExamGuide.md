@@ -2135,20 +2135,54 @@ tree /etc/ansible/NETWORK_INFO
     └── iptables
 ```
 ## Вариатив 2: Метрики с сервера мониторинга необходимо экспортировать в Grafana
-### Некоторые наброски
+
+На **HQ-SRV**
 ```
 apt-get install -y grafana
-systemctl enable --now grafana-server
 grafana-cli plugins install alexanderzobnin-zabbix-app
-systemctl restart grafana-server
+systemctl enable --now grafana-server
 ```
-Заходим с графики на IP:3000
-Вводим admin/admin, skip
-Переходим в Home>Administration>Plugins and data> Plugins>Zabbix - жмём enable
-Идём в Connection>Data sources>add data source/ Ищем zabbix и тыкаем его
-Вводим там ссылку на апи http://172.16.100.2:8080/api_jsonrpc.php
-Тут кажется можно задать пользователя и пароль которые нужно будет ввести для просмотра данных в будущем
-В разделе Zabbix connection должно стоять user and password
-Ставим Admin/P@ssw0wrd
-Листаем вниз и тыкаем Save&test - должно показать версию нашего апи заббикса
-На этом пока всё, ожидает дальнейшего редактирования и настройки
+На **HQ-CLI**
+
+Открываем в браузере http://hq-srv:3000
+
+Username: admin
+
+Password: admin
+
+![](images/DemExamGuide_20250523231255592.png)
+![](images/DemExamGuide_20250523231447325.png)
+![](images/DemExamGuide_20250523231638492.png)
+![](images/DemExamGuide_20250523231718444.png)
+![](images/DemExamGuide_20250523231735268.png)
+![](images/DemExamGuide_20250523231959747.png)
+![](images/DemExamGuide_20250523232136052.png)
+![](images/DemExamGuide_20250523232339401.png)
+![](images/DemExamGuide_20250523232440175.png)
+![](images/DemExamGuide_20250523232511974.png)
+![](images/DemExamGuide_20250523232619053.png)
+![](images/DemExamGuide_20250523232630082.png)
+![](images/DemExamGuide_20250523232654834.png)
+![](images/DemExamGuide_20250523232927610.png)
+Листаем ниже до раздела подключения к zabbix
+![](images/DemExamGuide_20250523233031532.png)
+Листаем ниже и проверяем подключение
+![](images/DemExamGuide_20250523233118842.png)
+![](images/DemExamGuide_20250523233504921.png)
+![](images/DemExamGuide_20250523233526616.png)
+![](images/DemExamGuide_20250523233637481.png)
+![](images/DemExamGuide_20250523233741366.png)
+![](images/DemExamGuide_20250523234622378.png)
+![](images/DemExamGuide_20250523234910078.png)
+![](images/DemExamGuide_20250523234933158.png)
+![](images/DemExamGuide_20250523235022103.png)
+![](images/DemExamGuide_20250523235043461.png)
+![](images/DemExamGuide_20250523235356767.png)
+![](images/DemExamGuide_20250524001011251.png)
+![](images/DemExamGuide_20250524001208870.png)
+![](images/DemExamGuide_20250524001246275.png)
+![](images/DemExamGuide_20250523235823450.png)
+Проверим, что можно зайти под пользователем `monadmin`
+![](images/DemExamGuide_20250524000000162.png)
+![](images/DemExamGuide_20250524000048450.png)
+![](images/DemExamGuide_20250524000631923.png)
