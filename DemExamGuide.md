@@ -2134,6 +2134,111 @@ tree /etc/ansible/NETWORK_INFO
     │       └── options
     └── iptables
 ```
+## Вариатив 1: Настройте приоритизацию трафика QoS на роутере офиса HQ
+### Это задание было решено с использованием ИИ и пока не прошло официальное ревью
+
+На **HQ-CLI**,**HQ-RTR** установим iperf3 для тестирования и измерения
+```
+apt-get install -y iperf3
+```
+На **HQ-RTR** включим сервер iperf3 в фоне
+```
+iperf3 -sD
+```
+С **HQ-CLI** измерим скорость до роутера
+```
+iperf3 -c 172.16.200.1
+``` 
+Получим что-то вроде:
+```
+Connecting to host 172.16.200.1, port 5201
+[  5] local 172.16.200.4 port 58884 connected to 172.16.200.1 port 5201
+[ ID] Interval           Transfer     Bitrate         Retr  Cwnd
+[  5]   0.00-1.00   sec  2.03 GBytes  17.5 Gbits/sec    0   2.53 MBytes       
+[  5]   1.00-2.00   sec  2.40 GBytes  20.6 Gbits/sec    1   2.53 MBytes       
+[  5]   2.00-3.00   sec  2.61 GBytes  22.4 Gbits/sec    0   2.53 MBytes       
+[  5]   3.00-4.00   sec  2.59 GBytes  22.2 Gbits/sec    0   2.53 MBytes       
+[  5]   4.00-5.00   sec  1.93 GBytes  16.6 Gbits/sec    0   2.53 MBytes       
+[  5]   5.00-6.00   sec  2.34 GBytes  20.1 Gbits/sec    2   2.53 MBytes       
+[  5]   6.00-7.00   sec  2.82 GBytes  24.3 Gbits/sec    0   2.53 MBytes       
+[  5]   7.00-8.00   sec  2.13 GBytes  18.3 Gbits/sec    1   2.53 MBytes       
+[  5]   8.00-9.00   sec  1.82 GBytes  15.6 Gbits/sec    0   2.53 MBytes       
+[  5]   9.00-10.00  sec  2.40 GBytes  20.6 Gbits/sec    0   2.53 MBytes       
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-10.00  sec  23.1 GBytes  19.8 Gbits/sec    4            sender
+[  5]   0.00-10.00  sec  23.1 GBytes  19.8 Gbits/sec                  receiver
+```
+Поделим на два наш результат (Bitrate), получим примерно 9.9 Гбит, и это далее укажем в фильтре.
+Приступим к настройке
+```
+tc qdisc add dev cli handle ffff: ingress
+tc filter add dev cli parent ffff: protocol ip prio 1 u32 match ip protocol 1 0xff flowid :1
+tc filter add dev cli parent ffff: protocol ip prio 2 u32 match ip src 172.16.200.4 police rate 9.9gbit burst 1m drop flowid :2
+```
+На **HQ-CLI**
+Проверим применились и верны ли наши настройки
+```
+iperf3 -c 172.16.200.1
+```
+Должно выдать в конце примерно следующие значения
+```
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-10.00  sec  10.4 GBytes  8.96 Gbits/sec  178934            sender
+[  5]   0.00-10.00  sec  10.4 GBytes  8.96 Gbits/sec                  receiver
+```
+Так же можем проверить на **HQ-RTR** что часть пакетов была отброшена фильтром
+```
+tc -s filter show dev cli parent ffff:
+```
+Выдаст примерно следующее, здесь нас интересует что `dropped` и `overlimits` не пусты
+```
+filter protocol ip pref 1 u32 chain 0 
+filter protocol ip pref 1 u32 chain 0 fh 800: ht divisor 1 
+filter protocol ip pref 1 u32 chain 0 fh 800::800 order 2048 key ht 800 bkt 0 flowid :1 not_in_hw  (rule hit 254116 success 0)
+  match 00010000/00ff0000 at 8 (success 0 ) 
+filter protocol ip pref 2 u32 chain 0 
+filter protocol ip pref 2 u32 chain 0 fh 802: ht divisor 1 
+filter protocol ip pref 2 u32 chain 0 fh 802::800 order 2048 key ht 802 bkt 0 flowid :2 not_in_hw  (rule hit 254116 success 254116)
+  match ac10c804/ffffffff at 12 (success 254116 ) 
+ police 0x1 rate 9900Mbit burst 1046925b mtu 2Kb action drop overhead 0b 
+        ref 1 bind 1 installed 768 sec used 28 sec firstused 766 sec
+
+ Sent 11472496705 bytes 3115 pkts (dropped 4764, overlimits 4764) 
+```
+После того как мы убедились что всё работает, нам нужно сделать так чтобы правила применялись после перезагрузки машины
+```
+vim /etc/net/ifaces/cli/ifup-post
+```
+Вставим туда все команды для настройки
+```
+tc qdisc add dev cli handle ffff: ingress
+tc filter add dev cli parent ffff: protocol ip prio 1 u32 match ip protocol 1 0xff flowid :1
+tc filter add dev cli parent ffff: protocol ip prio 2 u32 match ip src 172.16.200.4 police rate 9.9gbit burst 1m drop flowid :2
+```
+Поставим права на выполнение для файла
+```
+chmod +x /etc/net/ifaces/cli/ifup-post
+```
+Перезагрузим **HQ-RTR** и когда он запустится снова проверим работу фильтра с **HQ-CLI**
+```
+iperf3 -c 172.16.200.1
+```
+Здесь как уже известно, мы ожидаем увидеть примерно такой итог
+```
+[ ID] Interval           Transfer     Bitrate         Retr
+[  5]   0.00-10.00  sec  10.2 GBytes  8.77 Gbits/sec  126381            sender
+[  5]   0.00-10.01  sec  10.2 GBytes  8.76 Gbits/sec                  receiver
+```
+
+(ВНИМАНИЕ ЭТО УДАЛИТ НАСТРОЙКУ!!!)
+Если что-то пошло не так, то можем удалить все созданные ранее настройки из загруженных на данный момент.  
+```
+tc qdisc del dev cli root
+tc qdisc del dev cli ingress
+```
+Если неправильные настройки были записаны в скрипт `ifup-post`, то этот файл тоже нужно будет очистить и изменить чтобы они не применились при следующем перезапуске
+
 ## Вариатив 2: Метрики с сервера мониторинга необходимо экспортировать в Grafana
 
 На **HQ-SRV**
