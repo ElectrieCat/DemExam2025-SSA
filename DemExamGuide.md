@@ -1197,7 +1197,7 @@ vim /var/www/webapps/moodle/config.php
 ```
 $CFG->wwwroot   = 'http://moodle.au-team.irpo/moodle';
 ```
-После на следующей строчке добавим новый параметр 
+На следующей строке добавим новый параметр, очередность строк здесь имеет значение
 ```
 $CFG->reverseproxy  =  true;
 ```
@@ -1385,9 +1385,12 @@ systemctl restart nginx
 ```
 mv /home/user/cacert.pem /etc/pki/ca-trust/source/anchors/
 update-ca-trust
-trust list | grep AU 
 ```
 Проверим что система доверяет нашему CA, должно вывести `label: AU-Team-CA`
+```
+trust list | grep AU-Team 
+```
+Установим cryptopro
 ```
 apt-get install -y cryptopro-preinstall
 tar -xf linux-amd64.tgz #Архив качаем с сайта КриптоПро после регистрации, нам нужен "Актуальный" для Linux RPM x64
@@ -1395,9 +1398,11 @@ cd linux-amd64
 apt-get install cprocsp-curl* lsb-cprocsp-base* lsb-cprocsp-capilite* lsb-cprocsp-kc1-64* lsb-cprocsp-rdr-64*
 ./install.sh
 ln /opt/cprocsp/bin/amd64/* /bin
-certmgr -install -store mRoot -file /etc/pki/ca-trust/source/anchors/cacert.pem #Вводим "o"
+certmgr -install -store mRoot -file /etc/pki/ca-trust/source/anchors/cacert.pem
 certmgr -install -store mRoot -crl -file /home/user/ca.crl
 ```
+Надпись `[ErrorCode: 0x00000000]` в конце вывода команд `certmgt` это нормально
+
 Включим поддержку шифрования по ГОСТу в яндексе, для этого нажать "Три горизонтальные полоски" (самые верхние правее)> Настройки > Системные > Подключаться к сайтам использующим шифрование ГОСТ
 
 Проверить открыв в яндекс браузере https://wiki.au-team.irpo и https://moodle.au-team.irpo, если нет предупреждений (кроме того что сайт использует шифрование ГОСТ) то всё сработало.
