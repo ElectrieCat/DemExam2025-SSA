@@ -1056,9 +1056,19 @@ scp -P 2024 LocalSettings.php sshuser@br-srv:/home/sshuser/
 ```
 mv /home/sshuser/LocalSettings.php /root/
 docker compose -f wiki.yml down
+```
+Отредактируем LocalSettings.php
+```
+vim
+```
+Настроим переменную
+```
+$wgServer = "http://wiki.au-team.irpo:8080";
+```
+Снова откроем конфигурацию контейнеров
+```
 vim wiki.yml
 ```
-
 Раскомментируем строку (убрать символ #)
 ```
 #- ./LocalSettings.php:/var/www/html/LocalSettings.php
