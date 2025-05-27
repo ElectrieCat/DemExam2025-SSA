@@ -253,10 +253,9 @@ vim /etc/sudoers
 В файле /etc/sudoers раскомментить строку WHEEL_USERS ALL=(ALL:ALL) NOPASSWD: ALL
 Примечание: при редактировании через что либо кроме visudo этот файл - ro, чтобы его записать в виме введите :wq!
 ```
-
-Проверка
+Проверка, выполнять от пользователя `sshuser`
 ```
-id sshuser
+id
 sudo -i
 ```
 **На HQ-RTR и BR-RTR**
@@ -269,7 +268,7 @@ passwd net_admin
 vim /etc/sudoers
 В файле /etc/sudoers раскомментить строку WHEEL_USERS ALL=(ALL:ALL) NOPASSWD: ALL
 ```
-Проверка
+Проверка, выполнять от пользователя `net_admin`
 ```
 sudo -i
 ```
