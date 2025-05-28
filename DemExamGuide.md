@@ -1058,11 +1058,11 @@ docker compose -f wiki.yml down
 ```
 Отредактируем LocalSettings.php
 ```
-vim
+vim LocalSettings.php
 ```
 Настроим переменную
 ```
-$wgServer = "http://wiki.au-team.irpo:8080";
+$wgServer = "http://wiki.au-team.irpo";
 ```
 Снова откроем конфигурацию контейнеров
 ```
