@@ -1531,6 +1531,7 @@ iptables -I FORWARD -i eth0 -p udp --dport 123 -j ACCEPT
 iptables -I FORWARD -i eth0 -p icmp -j ACCEPT
 iptables -I FORWARD -i eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 iptables -I FORWARD -i eth0 -p tcp --dport 2024 -j ACCEPT
+iptables -I FORWARD -i eth0 -p tcp --dport 8080 -j ACCEPT
 iptables -I INPUT -i eth0 -p icmp -j ACCEPT
 iptables -I INPUT -i eth0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 ```
@@ -1540,7 +1541,6 @@ iptables -I INPUT -i eth0 -p tcp --dport 22 -j ACCEPT
 ```
 Отдельно на **HQ-RTR**
 ```
-iptables -I FORWARD -i eth0 -p tcp --dport 8080 -j ACCEPT
 iptables -I INPUT -i eth0 -p udp --dport 123 -j ACCEPT
 ```
 Проверка с **ISP**
