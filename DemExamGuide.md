@@ -981,7 +981,7 @@ ansible -m ping all
 Должно вывести:
 
 ![](images/DemExamGuide_20250331212012678.png)
-## 5. Развертывание приложений в Docker на сервере BR-SRV.
+## 5. [2] Развертывание приложений в Docker на сервере BR-SRV.
 Установим докер, произведём небольшую преднастройку
 ```
 apt-get install -y docker-engine docker-compose
@@ -1087,20 +1087,44 @@ docker compose -f wiki.yml up -d
 docker compose -f wiki.yml down -v
 ```
 
-## 6. [2] На маршрутизаторах сконфигурируйте статическую трансляцию портов
+## 6. [3] На маршрутизаторах сконфигурируйте статическую трансляцию портов
 На **BR-RTR**
 ```
 iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 2024 -j DNAT --to-destination 172.16.0.2:2024
 iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 80 -j DNAT --to-destination 172.16.0.2:8080
 iptables-save -f /etc/sysconfig/iptables
 ```
-
-Проверяем работу Wiki с HQ-CLI
-В браузере открываем 172.16.5.2:80 и у нас должна открыться заглавная страница
-
-Проверяем работу ssh с HQ-RTR
+Проверяем что правила добавились
+```
+iptables -t nat -L PREROUTING
+```
+Вывод:
+```
+Chain PREROUTING (policy ACCEPT)
+target     prot opt source               destination         
+DNAT       tcp  --  anywhere             anywhere             tcp dpt:2024 to:172.16.0.2:2024
+DNAT       tcp  --  anywhere             anywhere             tcp dpt:http to:172.16.0.2:8080
+```
+Проверяем работу wiki и ssh с **HQ-RTR**
 ```
 ssh sshuser@172.16.5.2 -p 2024
+curl -i 172.16.5.2:80 
+```
+Вывод curl:
+```
+HTTP/1.1 301 Moved Permanently
+Date: Wed, 28 May 2025 19:21:33 GMT
+Server: Apache/2.4.62 (Debian)
+X-Powered-By: PHP/8.1.32
+X-Content-Type-Options: nosniff
+Vary: Accept-Encoding,Cookie
+Expires: Thu, 01 Jan 1970 00:00:00 GMT
+Cache-Control: private, must-revalidate, max-age=0
+Last-Modified: Wed, 28 May 2025 19:21:33 GMT
+Location: http://wiki.au-team.irpo/index.php/%D0%97%D0%B0%D0%B3%D0%BB%D0%B0%D0%B2%D0%BD%D0%B0%D1%8F_%D1%81%D1%82%D1%80%D0%B0%D0%BD%D0%B8%D1%86%D0%B0
+X-Request-Id: 4b1a9605b06d9e1cf6936be9
+Transfer-Encoding: chunked
+Content-Type: text/html; charset=UTF-8
 ```
 
 На **HQ-RTR**
@@ -1110,7 +1134,7 @@ iptables -t nat -A PREROUTING -p tcp -i eth0 --dport 80 -j DNAT --to-destination
 iptables-save -f /etc/sysconfig/iptables
 ```
 
-Проверяем с BR-RTR
+Проверяем с **BR-RTR**
 ```
 ssh sshuser@172.16.4.2 -p 2024
 curl 172.16.4.2:80
@@ -1170,8 +1194,9 @@ systemctl restart httpd2.service
 ![](images/DemExamGuide_20250402224649769.png)
 Настройка завершена
 
-## 8. Настройте веб-сервер nginx как обратный прокси-сервер на ISP
+## 8. [5] Настройте веб-сервер nginx как обратный прокси-сервер на ISP
 ```
+apt-get update
 apt-get install nginx -y
 vim /etc/nginx/sites-available.d/proxy.conf
 ```
@@ -1217,12 +1242,12 @@ systemctl restart httpd2
 
 Проверяем с **HQ-CLI**
 
-В браузере открываем страницы, вводим те же адреса что и здесь, это важно
+В яндекс браузере открываем страницы, вводим те же адреса что и здесь, это важно
 ```
 http://moodle.au-team.irpo/moodle/
 http://wiki.au-team.irpo
 ```
-## 9. Удобным способом установите приложение Яндекс Браузер для организаций на HQ-CLI
+## 9. [4] Удобным способом установите приложение Яндекс Браузер для организаций на HQ-CLI
 Из-под root
 ```
 apt-get install -y yandex-browser-stable
